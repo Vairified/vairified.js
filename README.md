@@ -6,8 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Vairified/vairified.js/actions/workflows/ci.yml"><img src="https://github.com/Vairified/vairified.js/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/version-0.1.0-green.svg" alt="Version 0.1.0">
+  <a href="https://github.com/Vairified/vairified.js/actions/workflows/ci.yml"><img src="https://github.com/Vairified/vairified.js/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://www.npmjs.com/package/vairified"><img src="https://img.shields.io/npm/v/vairified.svg" alt="npm"></a>
 </p>
 
