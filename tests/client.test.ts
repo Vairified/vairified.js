@@ -121,7 +121,7 @@ describe('Vairified', () => {
           return HttpResponse.json({
             updates: [
               {
-                memberId: 'uuid-1',
+                id: 'uuid-1',
                 previousRating: 4.0,
                 newRating: 4.1,
                 changedAt: '2026-01-21T12:00:00Z',
@@ -135,7 +135,7 @@ describe('Vairified', () => {
       const updates = await client.getRatingUpdates();
 
       expect(updates).toHaveLength(1);
-      expect(updates[0]?.memberId).toBe('uuid-1');
+      expect(updates[0]?.id).toBe('uuid-1');
       expect(updates[0]?.improved).toBe(true);
       expect(updates[0]?.change).toBeCloseTo(0.1);
     });
