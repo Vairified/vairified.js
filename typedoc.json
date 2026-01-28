@@ -11,11 +11,11 @@
   "hideGenerator": true,
   "navigationLinks": {
     "Vairified": "https://vairified.com",
-    "GitHub": "https://github.com/Vairified/vairified-js"
+    "GitHub": "https://github.com/Vairified/vairified.js"
   },
   "sidebarLinks": {
-    "Quick Start": "https://vairified.github.io/vairified-js/#md:quick-start",
-    "Python SDK": "https://vairified-py.readthedocs.io"
+    "Quick Start": "https://vairified.github.io/vairified.js/#md:quick-start",
+    "Python SDK": "https://vairified.github.io/vairified.py"
   },
   "plugin": [],
   "searchInComments": true,
