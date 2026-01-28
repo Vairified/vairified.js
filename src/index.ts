@@ -45,7 +45,6 @@ export {
   validateScope,
 } from './oauth.js';
 export type {
-  LegacyPlayerSearchData,
   MatchApiData,
   MatchInput,
   MatchResultData,

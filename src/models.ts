@@ -8,7 +8,6 @@
 
 import type { Vairified } from './client.js';
 import type {
-  LegacyPlayerSearchData,
   MatchApiData,
   MatchInput,
   MatchResultData,
@@ -22,7 +21,7 @@ import type {
 } from './types.js';
 
 /** Union type for player data from different endpoints */
-type PlayerData = MemberData | PlayerSearchData | LegacyPlayerSearchData;
+type PlayerData = MemberData | PlayerSearchData;
 
 /**
  * A single rating split with metadata.
@@ -119,17 +118,10 @@ export class RatingSplits {
 }
 
 /**
- * Check if data is from new search endpoint (has displayName)
+ * Check if data is from search endpoint (has displayName)
  */
-function isNewSearchData(data: PlayerData): data is PlayerSearchData {
+function isSearchData(data: PlayerData): data is PlayerSearchData {
   return 'displayName' in data;
-}
-
-/**
- * Check if data is from legacy search endpoint (has memberLongname)
- */
-function isLegacySearchData(data: PlayerData): data is LegacyPlayerSearchData {
-  return 'memberLongname' in data;
 }
 
 /**
@@ -167,25 +159,14 @@ export class Player {
   protected _client?: Vairified;
 
   constructor(data: PlayerData, client?: Vairified) {
-    if (isNewSearchData(data)) {
-      // New search format (limited data)
+    if (isSearchData(data)) {
+      // Search format (limited data)
       this.id = data.id;
       this.displayName = data.displayName;
       this.rating = data.rating ?? 0;
       this.isVairified = data.isVairified ?? false;
       this.isConnected = data.isConnected ?? false;
       this.ratingSplits = new RatingSplits();
-    } else if (isLegacySearchData(data)) {
-      // Legacy search format
-      const parts = data.memberLongname.split(' ');
-      this.id = data.memberId;
-      this.displayName = data.memberLongname;
-      this.firstName = parts[0] ?? '';
-      this.lastName = parts.slice(1).join(' ');
-      this.rating = data.primaryRating ?? 0;
-      this.isVairified = data.vairified ?? false;
-      this.isConnected = false;
-      this.ratingSplits = new RatingSplits(data.ratingSplits);
     } else {
       // Member format (full data)
       this.id = data.id;

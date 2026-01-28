@@ -83,27 +83,6 @@ export interface PlayerSearchData {
 }
 
 /**
- * Legacy player search data format (for backward compatibility).
- *
- * @category Types
- * @deprecated Use PlayerSearchData instead
- */
-export interface LegacyPlayerSearchData {
-  memberId: string;
-  memberLongname: string;
-  age?: number;
-  city?: string;
-  state?: string;
-  zip?: string;
-  country?: string;
-  gender?: string;
-  primaryRating?: number;
-  vairified?: boolean;
-  wheelchair?: boolean;
-  ratingSplits?: RatingSplitsData;
-}
-
-/**
  * Filters for player search.
  *
  * @category Types
@@ -246,7 +225,7 @@ export interface RatingUpdateData {
  * @category Types
  */
 export interface SearchResultsData {
-  players: (PlayerSearchData | LegacyPlayerSearchData)[];
+  players: PlayerSearchData[];
   total: number;
   page: number;
   limit: number;
