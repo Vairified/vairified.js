@@ -14,8 +14,6 @@ import {
   VairifiedError,
   ValidationError,
 } from './errors.js';
-import type { AuthorizationResponse, OAuthScope, TokenResponse } from './oauth.js';
-import { DEFAULT_SCOPES, SCOPES } from './oauth.js';
 import {
   type Match,
   MatchResult,
@@ -24,6 +22,8 @@ import {
   RatingUpdate,
   SearchResults,
 } from './models.js';
+import type { AuthorizationResponse, OAuthScope, TokenResponse } from './oauth.js';
+import { DEFAULT_SCOPES, SCOPES } from './oauth.js';
 import type {
   ApiErrorResponse,
   MatchResultData,
@@ -632,10 +632,9 @@ export class Vairified {
    * @category OAuth
    */
   async getAvailableScopes(): Promise<Array<{ id: string; name: string; description: string }>> {
-    const data = await this.request<{ scopes: Array<{ id: string; name: string; description: string }> }>(
-      'GET',
-      '/partner/oauth/scopes',
-    );
+    const data = await this.request<{
+      scopes: Array<{ id: string; name: string; description: string }>;
+    }>('GET', '/partner/oauth/scopes');
     return data.scopes ?? [];
   }
 

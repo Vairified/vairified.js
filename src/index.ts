@@ -14,6 +14,14 @@
 
 export { Vairified, type VairifiedEnvironment } from './client.js';
 export {
+  AuthenticationError,
+  NotFoundError,
+  OAuthError,
+  RateLimitError,
+  VairifiedError,
+  ValidationError,
+} from './errors.js';
+export {
   Match,
   MatchResult,
   Member,
@@ -24,25 +32,17 @@ export {
   SearchResults,
 } from './models.js';
 export {
-  AuthenticationError,
-  NotFoundError,
-  OAuthError,
-  RateLimitError,
-  ValidationError,
-  VairifiedError,
-} from './errors.js';
-export {
+  type AuthorizationResponse,
   DEFAULT_SCOPES,
   describeScope,
   describeScopes,
   generateState,
   getAuthorizationUrl,
-  SCOPES,
-  validateScope,
-  type AuthorizationResponse,
   type OAuthConfig,
   type OAuthScope,
+  SCOPES,
   type TokenResponse,
+  validateScope,
 } from './oauth.js';
 export type {
   LegacyPlayerSearchData,

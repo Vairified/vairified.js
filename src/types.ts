@@ -103,7 +103,6 @@ export interface LegacyPlayerSearchData {
   ratingSplits?: RatingSplitsData;
 }
 
-
 /**
  * Filters for player search.
  *

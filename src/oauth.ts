@@ -165,7 +165,9 @@ export function describeScope(scope: OAuthScope): string {
  *
  * @category OAuth
  */
-export function describeScopes(scopes: OAuthScope[]): Array<{ scope: OAuthScope; description: string }> {
+export function describeScopes(
+  scopes: OAuthScope[],
+): Array<{ scope: OAuthScope; description: string }> {
   return scopes.map((scope) => ({
     scope,
     description: describeScope(scope),

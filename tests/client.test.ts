@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw';
+import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
@@ -255,7 +255,6 @@ describe('Models', () => {
 describe('initialization', () => {
   it('should throw error when API key is missing', () => {
     const originalEnv = process.env.VAIRIFIED_API_KEY;
-    // biome-ignore lint/performance/noDelete: need to fully remove env var for this test
     delete process.env.VAIRIFIED_API_KEY;
 
     expect(() => new Vairified({})).toThrow('API key required');
