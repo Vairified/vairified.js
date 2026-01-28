@@ -291,37 +291,23 @@ for (const p of results) { }  // Iterable
 ```typescript
 import { Vairified } from 'vairified';
 
-// Use default environment (next)
+// Basic usage
 const client = new Vairified({ apiKey: 'vair_pk_xxx' });
 
-// Use production environment (after cutover)
-const client = new Vairified({ apiKey: 'vair_pk_xxx', env: 'production' });
-
-// Use staging for development
+// Use staging for development/testing
 const client = new Vairified({ apiKey: 'vair_pk_xxx', env: 'staging' });
 
-// Custom base URL
+// Custom configuration
 const client = new Vairified({
   apiKey: 'vair_pk_xxx',
-  baseUrl: 'https://custom-api.example.com/api/v1',
   timeout: 30000,
 });
 ```
-
-### Available Environments
-
-| Environment | URL | Description |
-|-------------|-----|-------------|
-| `next` | `api-next.vairified.com` | New production (parallel phase) |
-| `production` | `api.vairified.com` | Production (after cutover) |
-| `staging` | `api-staging.vairified.com` | Staging/testing |
-| `local` | `localhost:3001` | Local development |
 
 ### Environment Variables
 
 ```bash
 export VAIRIFIED_API_KEY="vair_pk_xxx"
-export VAIRIFIED_ENV="next"  # Optional: production, next, staging, local
 ```
 
 ```typescript
