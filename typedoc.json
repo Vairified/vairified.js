@@ -1,0 +1,37 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "out": "docs",
+  "name": "Vairified JavaScript SDK",
+  "readme": "README.md",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "hideGenerator": true,
+  "navigationLinks": {
+    "Vairified": "https://vairified.com",
+    "GitHub": "https://github.com/Vairified/vairified-js"
+  },
+  "sidebarLinks": {
+    "Quick Start": "https://vairified.github.io/vairified-js/#md:quick-start",
+    "Python SDK": "https://vairified-py.readthedocs.io"
+  },
+  "plugin": [],
+  "searchInComments": true,
+  "searchInDocuments": true,
+  "cleanOutputDir": true,
+  "sort": ["source-order"],
+  "kindSortOrder": [
+    "Project",
+    "Module",
+    "Class",
+    "Interface",
+    "TypeAlias",
+    "Function",
+    "Variable"
+  ],
+  "categorizeByGroup": true,
+  "categoryOrder": ["Client", "Models", "Errors", "Types", "*"],
+  "groupOrder": ["Classes", "Interfaces", "Type Aliases", "Functions", "Variables"]
+}
