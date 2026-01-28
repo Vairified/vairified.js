@@ -57,7 +57,7 @@
   },
   "homepage": "https://vairified.github.io/vairified.js",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=24.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.13",
