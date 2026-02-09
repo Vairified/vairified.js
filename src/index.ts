@@ -12,7 +12,16 @@
  * @module vairified
  */
 
-export { Vairified, type VairifiedEnvironment } from './client.js';
+export {
+  Vairified,
+  type VairifiedEnvironment,
+  type LeaderboardOptions,
+  type LeaderboardResponse,
+  type LeaderboardPlayer,
+  type PlayerRankOptions,
+  type PlayerRankResponse,
+  type LeaderboardCategoriesResponse,
+} from './client.js';
 export {
   AuthenticationError,
   NotFoundError,

@@ -655,4 +655,256 @@ export class Vairified {
   async getUsage(): Promise<Record<string, unknown>> {
     return this.request<Record<string, unknown>>('GET', '/partner/usage');
   }
+
+  // ---------------------------------------------------------------------------
+  // Leaderboard Operations
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get leaderboard data with filtering options.
+   *
+   * **Requires API Key Scope:** `leaderboard:read` or `read`
+   *
+   * @param options - Leaderboard filter options
+   * @returns Leaderboard response with players and stats
+   *
+   * @example
+   * ```ts
+   * // Get global doubles leaderboard
+   * const leaderboard = await client.getLeaderboard();
+   *
+   * // Get state-level singles leaderboard
+   * const txLeaderboard = await client.getLeaderboard({
+   *   category: 'singles',
+   *   scope: 'state',
+   *   state: 'TX',
+   * });
+   *
+   * // Get 50+ age bracket
+   * const seniorLeaderboard = await client.getLeaderboard({
+   *   ageBracket: '50+',
+   *   verifiedOnly: true,
+   * });
+   *
+   * for (const player of leaderboard.players) {
+   *   console.log(`#${player.rank} ${player.displayName}: ${player.rating}`);
+   * }
+   * ```
+   *
+   * @category Leaderboard
+   */
+  async getLeaderboard(options: LeaderboardOptions = {}): Promise<LeaderboardResponse> {
+    const params: Record<string, string | number | boolean> = {};
+
+    if (options.category) params.category = options.category;
+    if (options.ageBracket) params.ageBracket = options.ageBracket;
+    if (options.scope) params.scope = options.scope;
+    if (options.state) params.state = options.state;
+    if (options.city) params.city = options.city;
+    if (options.clubId) params.clubId = options.clubId;
+    if (options.gender) params.gender = options.gender;
+    if (options.verifiedOnly) params.verifiedOnly = true;
+    if (options.minGames !== undefined) params.minGames = options.minGames;
+    if (options.limit !== undefined) params.limit = options.limit;
+    if (options.offset !== undefined) params.offset = options.offset;
+    if (options.search) params.search = options.search;
+
+    return this.request<LeaderboardResponse>('GET', '/leaderboard', { params });
+  }
+
+  /**
+   * Get a specific player's rank on the leaderboard.
+   *
+   * **Requires API Key Scope:** `leaderboard:read` or `read`
+   *
+   * @param playerId - External player ID (vair_mem_xxx format)
+   * @param options - Leaderboard context options
+   * @returns Player rank data with nearby players for context
+   *
+   * @example
+   * ```ts
+   * const rank = await client.getPlayerRank('vair_mem_xxx', {
+   *   category: 'doubles',
+   *   contextSize: 5,
+   * });
+   *
+   * console.log(`Rank: #${rank.rank} (top ${rank.percentile}%)`);
+   * console.log(`Points to next rank: ${rank.pointsToNextRank}`);
+   *
+   * // Show nearby players
+   * for (const nearby of rank.nearbyPlayers) {
+   *   console.log(`#${nearby.rank} ${nearby.displayName}`);
+   * }
+   * ```
+   *
+   * @category Leaderboard
+   */
+  async getPlayerRank(
+    playerId: string,
+    options: PlayerRankOptions = {},
+  ): Promise<PlayerRankResponse> {
+    const body = {
+      playerId,
+      category: options.category ?? 'doubles',
+      ageBracket: options.ageBracket ?? 'open',
+      scope: options.scope ?? 'global',
+      state: options.state,
+      city: options.city,
+      clubId: options.clubId,
+      contextSize: options.contextSize ?? 5,
+    };
+
+    return this.request<PlayerRankResponse>('POST', '/leaderboard/rank', { body });
+  }
+
+  /**
+   * Get available leaderboard categories and brackets.
+   *
+   * **Requires API Key Scope:** `leaderboard:read` or `read`
+   *
+   * @returns Available categories, age brackets, and scopes
+   *
+   * @example
+   * ```ts
+   * const categories = await client.getLeaderboardCategories();
+   *
+   * console.log('Categories:', categories.categories.map(c => c.name));
+   * console.log('Age Brackets:', categories.ageBrackets.map(b => b.name));
+   * ```
+   *
+   * @category Leaderboard
+   */
+  async getLeaderboardCategories(): Promise<LeaderboardCategoriesResponse> {
+    return this.request<LeaderboardCategoriesResponse>('GET', '/leaderboard/categories');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Leaderboard Types
+// ---------------------------------------------------------------------------
+
+/**
+ * Options for leaderboard queries.
+ * @category Leaderboard
+ */
+export interface LeaderboardOptions {
+  /** Rating category: doubles, singles, mixed (default: doubles) */
+  category?: 'doubles' | 'singles' | 'mixed';
+  /** Age bracket: open, 40+, 50+, 60+, 70+ (default: open) */
+  ageBracket?: string;
+  /** Geographic scope: global, state, city, club (default: global) */
+  scope?: 'global' | 'state' | 'city' | 'club';
+  /** State code (required if scope is 'state') */
+  state?: string;
+  /** City name (required if scope is 'city') */
+  city?: string;
+  /** Club ID (required if scope is 'club') */
+  clubId?: string;
+  /** Filter by gender: male, female */
+  gender?: 'male' | 'female';
+  /** Only show VAIRified players */
+  verifiedOnly?: boolean;
+  /** Minimum games to appear (default: 10) */
+  minGames?: number;
+  /** Results per page (default: 50, max: 100) */
+  limit?: number;
+  /** Pagination offset */
+  offset?: number;
+  /** Search by player name */
+  search?: string;
+}
+
+/**
+ * Leaderboard API response.
+ * @category Leaderboard
+ */
+export interface LeaderboardResponse {
+  players: LeaderboardPlayer[];
+  stats: {
+    totalPlayers: number;
+    verifiedPlayers: number;
+    averageRating: number;
+    totalGames: number;
+  };
+  filters: {
+    category: string;
+    ageBracket: string;
+    scope: string;
+    verifiedOnly: boolean;
+    minGames: number;
+  };
+  pagination: {
+    limit: number;
+    offset: number;
+    total: number;
+    hasMore: boolean;
+  };
+  cachedAt?: string;
+}
+
+/**
+ * Player entry in leaderboard.
+ * @category Leaderboard
+ */
+export interface LeaderboardPlayer {
+  rank: number;
+  externalId: string;
+  displayName: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  rating: number;
+  gamesPlayed: number;
+  isVairified: boolean;
+  ratingChange?: number;
+}
+
+/**
+ * Options for player rank query.
+ * @category Leaderboard
+ */
+export interface PlayerRankOptions {
+  /** Rating category (default: doubles) */
+  category?: 'doubles' | 'singles' | 'mixed';
+  /** Age bracket (default: open) */
+  ageBracket?: string;
+  /** Geographic scope (default: global) */
+  scope?: 'global' | 'state' | 'city' | 'club';
+  /** State code for state scope */
+  state?: string;
+  /** City name for city scope */
+  city?: string;
+  /** Club ID for club scope */
+  clubId?: string;
+  /** Number of nearby players to include (default: 5) */
+  contextSize?: number;
+}
+
+/**
+ * Player rank API response.
+ * @category Leaderboard
+ */
+export interface PlayerRankResponse {
+  playerId: string;
+  rank: number;
+  totalPlayers: number;
+  percentile: number;
+  rating: number;
+  gamesPlayed: number;
+  pointsToNextRank?: number;
+  pointsBufferFromPrevious?: number;
+  nearbyPlayers: LeaderboardPlayer[];
+  category: string;
+  ageBracket: string;
+  scope: string;
+}
+
+/**
+ * Available leaderboard categories response.
+ * @category Leaderboard
+ */
+export interface LeaderboardCategoriesResponse {
+  categories: Array<{ code: string; name: string }>;
+  ageBrackets: Array<{ code: string; name: string; displayOrder: number }>;
+  scopes: Array<{ code: string; name: string }>;
 }

@@ -114,6 +114,47 @@ const singles = new Match({
 await client.submitMatch(singles);
 ```
 
+### Leaderboard
+
+```typescript
+import { Vairified } from 'vairified';
+
+const client = new Vairified({ apiKey: 'vair_pk_xxx' });
+
+// Get global doubles leaderboard
+const leaderboard = await client.getLeaderboard();
+
+// Get state-level singles leaderboard
+const txLeaderboard = await client.getLeaderboard({
+  category: 'singles',
+  scope: 'state',
+  state: 'TX',
+  limit: 50,
+});
+
+// Get 50+ age bracket with verified players only
+const seniorLeaderboard = await client.getLeaderboard({
+  ageBracket: '50+',
+  verifiedOnly: true,
+});
+
+// Display results
+for (const player of leaderboard.players) {
+  console.log(`#${player.rank} ${player.displayName}: ${player.rating}`);
+}
+
+// Get a specific player's rank
+const rank = await client.getPlayerRank('vair_mem_xxx', {
+  category: 'doubles',
+  contextSize: 5,
+});
+console.log(`Rank: #${rank.rank} (top ${rank.percentile.toFixed(1)}%)`);
+
+// Get available categories
+const categories = await client.getLeaderboardCategories();
+console.log('Categories:', categories.categories.map(c => c.name));
+```
+
 ### Get Rating Updates
 
 ```typescript
@@ -314,6 +355,26 @@ export VAIRIFIED_API_KEY="vair_pk_xxx"
 // API key read from environment (Node.js only)
 const client = new Vairified();
 ```
+
+## API Key Scopes
+
+Your API key determines which endpoints you can access. The scope system uses a hierarchy:
+
+```
+admin → write → read → granular scopes
+```
+
+| Scope | Access |
+|-------|--------|
+| `admin` | Full access to all endpoints |
+| `write` | All read + write operations |
+| `read` | All read operations (search, leaderboard, member) |
+| `leaderboard:read` | Leaderboard endpoints only |
+| `player:search` | Player search only |
+| `member:read` | Connected member data only |
+| `match:submit` | Submit match results |
+| `tournament:import` | Import tournament data |
+| `dry-run` | Validate writes without persisting |
 
 ## Dry-Run Mode (Dev Keys)
 
