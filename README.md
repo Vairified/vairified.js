@@ -367,8 +367,8 @@ for (const [key, split] of pb ?? []) { /* iterate */ }
 ## Migrating from 0.1.x
 
 Version 0.2.0 is a breaking rewrite. See the
-[migration guide](https://vairified.github.io/vairified.js/migrating) for the full diff
-and [CHANGELOG.md](CHANGELOG.md) for the release notes.
+[migration guide](https://vairified.github.io/vairified.js/documents/Migrating_from_0.1.x.html)
+for the full diff and [CHANGELOG.md](CHANGELOG.md) for the release notes.
 
 ## Development
 
