@@ -1,19 +1,24 @@
 /**
- * Vairified SDK Errors
+ * Vairified SDK — error hierarchy.
+ *
+ * All SDK errors inherit from {@link VairifiedError}, so a single
+ * `catch (err: unknown) { if (err instanceof VairifiedError) ... }`
+ * covers everything. HTTP-status-specific subclasses (auth, not found,
+ * rate limit, validation) are thrown automatically by the HTTP layer.
  *
  * @module
  */
 
 /**
- * Base error class for Vairified SDK errors.
+ * Base class for every error thrown by the Vairified SDK.
  *
  * @category Errors
  */
 export class VairifiedError extends Error {
-  /** HTTP status code */
-  statusCode?: number;
-  /** Response body */
-  response?: unknown;
+  /** HTTP status code (if the error came from an API response). */
+  readonly statusCode?: number;
+  /** Raw response body parsed as JSON when available. */
+  readonly response?: unknown;
 
   constructor(message: string, statusCode?: number, response?: unknown) {
     super(message);
@@ -24,13 +29,14 @@ export class VairifiedError extends Error {
 }
 
 /**
- * Error thrown when API rate limit is exceeded.
+ * Thrown on HTTP 429 responses. Carries the `Retry-After` header value
+ * when the server provides one.
  *
  * @category Errors
  */
 export class RateLimitError extends VairifiedError {
-  /** Seconds to wait before retrying */
-  retryAfter?: number;
+  /** Seconds to wait before retrying, or `undefined` if the server didn't say. */
+  readonly retryAfter?: number;
 
   constructor(message = 'Rate limit exceeded', retryAfter?: number, response?: unknown) {
     super(message, 429, response);
@@ -40,7 +46,7 @@ export class RateLimitError extends VairifiedError {
 }
 
 /**
- * Error thrown when API key is invalid or missing.
+ * Thrown on HTTP 401 — invalid or missing API key.
  *
  * @category Errors
  */
@@ -52,7 +58,7 @@ export class AuthenticationError extends VairifiedError {
 }
 
 /**
- * Error thrown when a requested resource is not found.
+ * Thrown on HTTP 404 — the resource doesn't exist.
  *
  * @category Errors
  */
@@ -64,7 +70,9 @@ export class NotFoundError extends VairifiedError {
 }
 
 /**
- * Error thrown when request validation fails.
+ * Thrown on HTTP 400 — the server rejected the request payload.
+ *
+ * Inspect {@link VairifiedError.response} for field-level details.
  *
  * @category Errors
  */
@@ -76,15 +84,17 @@ export class ValidationError extends VairifiedError {
 }
 
 /**
- * Error thrown when an OAuth operation fails.
- *
- * This can occur during authorization, token exchange, refresh, or revocation.
+ * Thrown by {@link OAuthResource} methods when authorization, token
+ * exchange, refresh, or revocation fails.
  *
  * @category Errors
  */
 export class OAuthError extends VairifiedError {
-  /** OAuth error code (e.g., 'invalid_grant', 'expired_token') */
-  errorCode?: string;
+  /**
+   * OAuth error code such as `'invalid_grant'`, `'invalid_scope'`,
+   * or `'expired_token'`. Check this to branch on the specific failure.
+   */
+  readonly errorCode?: string;
 
   constructor(message = 'OAuth error', errorCode?: string, response?: unknown) {
     super(message, undefined, response);

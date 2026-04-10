@@ -1,0 +1,84 @@
+<!DOCTYPE html><html class="default" lang="en" data-base="../"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>CHANGELOG | Vairified TypeScript SDK - v0.2.0</title><meta name="description" content="Documentation for Vairified TypeScript SDK"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/icons.js" id="tsd-icons-script"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script><script async src="../assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar"><div class="tsd-toolbar-contents container"><a href="../index.html" class="title">Vairified TypeScript SDK - v0.2.0</a><div id="tsd-toolbar-links"><a href="https://vairified.com">Vairified</a><a href="https://github.com/Vairified/vairified.js">GitHub</a></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/><ul role="listbox" id="tsd-search-results"></ul><div id="tsd-search-status" aria-live="polite" aria-atomic="true"><div>Preparing search index...</div></div></dialog><a href="#" class="tsd-widget menu" id="tsd-toolbar-menu-trigger" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-menu"></use></svg></a></div></header><div class="container container-main"><div class="col-content"><div class="tsd-page-title"><ul class="tsd-breadcrumb" aria-label="Breadcrumb"><li><a href="" aria-current="page">CHANGELOG</a></li></ul></div><div class="tsd-panel tsd-typography"><h1 id="changelog" class="tsd-anchor-link">Changelog<a href="#changelog" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<p>All notable changes to the Vairified TypeScript SDK are documented here.</p>
+<p>The format is based on <a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>,
+and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
+<h2 id="020-2026-04-10" class="tsd-anchor-link">[0.2.0] - 2026-04-10<a href="#020-2026-04-10" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<h3 id="breaking-changes" class="tsd-anchor-link">Breaking Changes<a href="#breaking-changes" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li><strong>Complete SDK rewrite</strong> to match the multi-sport Partner API v1 shape. Flat
+single-sport fields like <code>member.rating</code> and <code>member.ratingSplits.gender</code> are gone —
+rating data now lives under <code>member.sport</code> as a dict-like <code>MemberSportMap</code> keyed by
+sport code. Use <code>member.ratingFor('pickleball')</code> for the primary rating and
+<code>member.split('overall-open')</code> to access specific brackets.</li>
+<li>Client operations are now organized as sub-resources that mirror the REST layout:
+<code>client.members.get/search/find/ratingUpdates</code>, <code>client.matches.submit/testWebhook</code>,
+<code>client.oauth.authorize/exchangeToken/refresh/revoke</code>, and
+<code>client.leaderboard.list/rank/categories</code>. Flat methods like <code>client.getMember()</code>,
+<code>client.search()</code>, and <code>client.submitMatch()</code> have been removed.</li>
+<li><code>Match</code> now takes <code>teams: string[][]</code> and <code>games: GameInput[]</code> instead of
+<code>team1</code>/<code>team2</code> and per-game score tuples. This natively supports n-team × n-game
+matches (singles, doubles, round-robin, best-of-N) through a single shape. Match
+submission goes through a new <code>MatchBatch</code> wrapper that carries shared defaults
+(<code>sport</code>, <code>winScore</code>, <code>winBy</code>, <code>bracket</code>, <code>event</code>, <code>matchDate</code>) for every match in
+the batch.</li>
+<li>The flat top-level <code>member.isVairified</code>, <code>member.isWheelchair</code>, etc. booleans have
+been grouped under <code>member.status.*</code>.</li>
+<li><code>RatingSplits</code> convenience properties (<code>.gender</code>, <code>.mixed</code>, <code>.open</code>, etc.) are gone.
+Access splits by string key instead: <code>pb.get('gender-open')</code>.</li>
+<li>OAuth free functions signature changed — <code>getAuthorizationUrl(config, scopes, state)</code>
+is now <code>getAuthorizationUrl(config, { scopes, state })</code>.</li>
+</ul>
+<h3 id="added" class="tsd-anchor-link">Added<a href="#added" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li><strong>Sub-resource layout</strong> — <code>client.members</code>, <code>client.matches</code>, <code>client.oauth</code>,
+<code>client.leaderboard</code>, each a class instance with its own typed methods. Mirrors the
+REST API structure and the Python <code>vairified</code> SDK.</li>
+<li><strong>Async iterator search</strong> — <code>client.members.search()</code> is an <code>AsyncGenerator</code> that
+yields one member at a time. Iterate with <code>for await (const m of ...)</code>; pages are
+fetched lazily so memory stays bounded. Use <code>maxResults</code> to cap, or <code>break</code> early.</li>
+<li><strong>Multi-sport ratings</strong> — <code>member.sport</code> is a <code>MemberSportMap</code> with <code>.get()</code>,
+<code>.has()</code>, <code>.size</code>, and <code>Symbol.iterator</code> support. Each <code>SportRating</code> is also
+dict-like with the same surface for its splits.</li>
+<li><strong>Sport filter</strong> on <code>client.members.get()</code> and <code>client.members.search()</code> — pass
+<code>sport: 'pickleball'</code> or <code>sport: ['pickleball', 'padel']</code> to restrict ratings.</li>
+<li><strong><code>await using</code> support</strong> — <code>Vairified</code> implements <code>Symbol.asyncDispose</code>, so clients
+wrapped in <code>await using</code> (TypeScript 5.2+) are cleaned up deterministically at block
+exit. <code>client.close()</code> is still available for manual lifecycle control.</li>
+<li><strong>Injectable <code>fetch</code></strong> — pass a custom <code>fetch</code> via <code>new Vairified({ fetch })</code> for
+test shims or non-Node runtimes.</li>
+<li><strong>Request timeouts</strong> — configurable via <code>timeoutMs</code> option (default 30,000). Uses
+<code>AbortController</code> under the hood.</li>
+<li><strong>Environment presets</strong> — <code>new Vairified({ env: 'staging' })</code> resolves the right
+base URL. Reads <code>VAIRIFIED_ENV</code> from the environment when not supplied.</li>
+<li><strong>Typed OAuth scopes</strong> — <code>OAuthScope</code> is a string literal union, so editors and type
+checkers catch typos in scope lists at authoring time.</li>
+<li><strong>Typed error hierarchy</strong> — <code>VairifiedError</code> base + <code>AuthenticationError</code>,
+<code>NotFoundError</code>, <code>RateLimitError</code>, <code>ValidationError</code>, <code>OAuthError</code>. All errors carry
+<code>statusCode</code> and <code>response</code>; <code>RateLimitError</code> also carries <code>retryAfter</code>.</li>
+<li><strong>Cryptographic <code>generateState()</code></strong> — URL-safe base64 CSRF token helper using the
+Web Crypto API.</li>
+<li><strong>Useful <code>toString()</code></strong> on every model class for console output:
+<code>Member #4873327 'Mike B.' rating=3.915 VO</code>.</li>
+</ul>
+<h3 id="changed" class="tsd-anchor-link">Changed<a href="#changed" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li><strong>Native <code>fetch</code></strong> — removed the custom HTTP abstraction. The SDK now uses Node 24+'s
+built-in <code>fetch</code> directly. This keeps the bundle lean and the dependency graph empty.</li>
+<li><strong>Zero runtime dependencies.</strong> The SDK declares nothing in <code>dependencies</code> —
+everything is authored against platform primitives (<code>fetch</code>, <code>URL</code>, <code>URLSearchParams</code>,
+<code>crypto</code>, <code>Symbol.asyncDispose</code>).</li>
+<li><strong>Engines field bumped</strong> — requires Node ≥ 24.</li>
+<li><strong>Package layout split</strong> — <code>src/client.ts</code> is now a slim 150-line shell; HTTP plumbing
+lives in <code>src/http.ts</code>, models in <code>src/models/*</code>, and resources in <code>src/resources/*</code>.</li>
+</ul>
+<h3 id="removed" class="tsd-anchor-link">Removed<a href="#removed" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li><code>Player</code> class — merged into <code>Member</code>.</li>
+<li><code>MatchInput</code> / <code>MatchApiData</code> — replaced by <code>MatchInput</code> + <code>MatchBatch</code> with
+n-team × n-game shape.</li>
+<li><code>SearchResults</code> class — replaced by the async iterator returned from
+<code>client.members.search()</code>.</li>
+<li><code>MatchResult</code> class — renamed to <code>MatchBatchResult</code> to match the new submission model.</li>
+<li><code>RatingSplits</code> convenience getters — replaced by string-keyed <code>SportRating.get()</code>.</li>
+</ul>
+</div></div><div class="col-sidebar"><div class="page-menu"><div class="tsd-navigation settings"><details class="tsd-accordion"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg><h3>Settings</h3></summary><div class="tsd-accordion-details"><div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span><ul id="tsd-filter-options"><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></div><div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div><details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg><h3>On This Page</h3></summary><div class="tsd-accordion-details"><a href="#changelog"><span>Changelog</span></a><ul><li><a href="#020-2026-04-10"><span>[0.2.0] -<wbr/> 2026-<wbr/>04-<wbr/>10</span></a></li><li><ul><li><a href="#breaking-changes"><span>Breaking <wbr/>Changes</span></a></li><li><a href="#added"><span>Added</span></a></li><li><a href="#changed"><span>Changed</span></a></li><li><a href="#removed"><span>Removed</span></a></li></ul></li></ul></div></details></div><div class="site-menu"><nav id="tsd-sidebar-links" class="tsd-navigation"><a href="https://vairified.github.io/vairified.js/#md:quick-start">Quick Start</a><a href="https://vairified.github.io/vairified.py">Python SDK</a><a href="https://vairified.com" class="tsd-nav-link">Vairified</a><a href="https://github.com/Vairified/vairified.js" class="tsd-nav-link">GitHub</a></nav><nav class="tsd-navigation"><a href="../modules.html">Vairified TypeScript SDK - v0.2.0</a><ul class="tsd-small-nested-navigation" id="tsd-nav-container"><li>Loading...</li></ul></nav></div></div></div><footer></footer><div class="overlay"></div></body></html>

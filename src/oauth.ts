@@ -1,65 +1,84 @@
 /**
- * Vairified OAuth Helpers
+ * Vairified OAuth helpers and type definitions.
  *
- * Utilities for implementing the "Connect with Vairified" OAuth flow.
+ * Use the {@link OAuthResource} on `client.oauth` for the full flow —
+ * these helpers exist for partners who need to build authorization URLs
+ * or validate scopes outside the client (e.g. in a frontend that only
+ * handles the redirect step).
  *
  * @module
  */
 
+// ---------------------------------------------------------------------------
+// Scope definitions
+// ---------------------------------------------------------------------------
+
 /**
- * Available OAuth scopes with descriptions.
+ * Every OAuth scope the Vairified authorization server accepts.
+ *
+ * Declaring this as a string union (rather than a free-form `string`)
+ * lets TypeScript catch typos at authoring time:
+ *
+ * ```ts
+ * const scopes: OAuthScope[] = ['profile:read', 'rating:read']; // ok
+ * const bad: OAuthScope[] = ['profile:read', 'rating']; // type error
+ * ```
  *
  * @category OAuth
  */
-export const SCOPES = {
+export type OAuthScope =
+  | 'profile:read'
+  | 'profile:email'
+  | 'rating:read'
+  | 'rating:history'
+  | 'match:submit'
+  | 'webhook:subscribe';
+
+/**
+ * Human-readable description for every OAuth scope.
+ *
+ * @category OAuth
+ */
+export const SCOPES: Readonly<Record<OAuthScope, string>> = Object.freeze({
   'profile:read': 'Access your name, location, and verification status',
   'profile:email': 'Access your email address',
   'rating:read': 'View your current rating and rating splits',
   'rating:history': 'View your complete rating history',
   'match:submit': 'Submit match results on your behalf',
   'webhook:subscribe': 'Receive notifications when your rating changes',
-} as const;
+});
 
 /**
- * Available OAuth scope keys.
+ * The scopes automatically requested when none are specified.
  *
  * @category OAuth
  */
-export type OAuthScope = keyof typeof SCOPES;
+export const DEFAULT_SCOPES: readonly OAuthScope[] = Object.freeze(['profile:read', 'rating:read']);
+
+// ---------------------------------------------------------------------------
+// OAuth data types
+// ---------------------------------------------------------------------------
 
 /**
- * Default scopes requested for new connections.
- *
- * @category OAuth
- */
-export const DEFAULT_SCOPES: OAuthScope[] = ['profile:read', 'rating:read'];
-
-/**
- * OAuth configuration for a partner application.
+ * Configuration for building an authorization URL manually.
  *
  * @category OAuth
  */
 export interface OAuthConfig {
-  /** Partner API key */
-  apiKey: string;
-  /** Your application's callback URL */
-  redirectUri: string;
-  /** Vairified API base URL */
-  baseUrl?: string;
+  readonly apiKey: string;
+  readonly redirectUri: string;
+  readonly baseUrl?: string;
 }
 
 /**
- * Response from starting an OAuth authorization.
+ * Response from starting an OAuth authorization flow.
  *
  * @category OAuth
  */
 export interface AuthorizationResponse {
-  /** Full URL to redirect the user to */
-  authorizationUrl: string;
-  /** Authorization code (for internal tracking) */
-  code: string;
-  /** CSRF state parameter */
-  state?: string;
+  readonly authorizationUrl: string;
+  readonly code: string;
+  readonly state?: string;
 }
 
 /**
@@ -68,76 +87,47 @@ export interface AuthorizationResponse {
  * @category OAuth
  */
 export interface TokenResponse {
-  /** Access token for API requests */
-  accessToken: string;
-  /** Refresh token for obtaining new access tokens */
-  refreshToken?: string;
-  /** Token expiration in seconds */
-  expiresIn: number;
-  /** Granted scopes */
-  scope: string[];
-  /** Connected player's external ID */
-  playerId: string;
+  readonly accessToken: string;
+  readonly refreshToken: string | null;
+  readonly expiresIn: number;
+  readonly scope: readonly string[];
+  readonly playerId: string;
 }
+
+// ---------------------------------------------------------------------------
+// Helper functions
+// ---------------------------------------------------------------------------
 
 /**
  * Build the URL to redirect users to for OAuth authorization.
  *
- * This is a helper for building the URL manually. In most cases,
- * you should use the Vairified client's OAuth methods instead.
- *
- * @param config - OAuth configuration
- * @param scopes - Permission scopes to request
- * @param state - CSRF protection state parameter
- * @returns URL to redirect the user to
- *
- * @example
- * ```ts
- * const url = getAuthorizationUrl(
- *   {
- *     apiKey: 'vair_pk_xxx',
- *     redirectUri: 'https://myapp.com/oauth/callback',
- *   },
- *   ['profile:read', 'rating:read'],
- * );
- * // Redirect user to this URL
- * window.location.href = url;
- * ```
+ * Prefer {@link OAuthResource.authorize} on a Vairified client — this
+ * helper is only useful when you need to construct the URL without
+ * making an HTTP call first (for example, in a pure-frontend handoff).
  *
  * @category OAuth
  */
 export function getAuthorizationUrl(
   config: OAuthConfig,
-  scopes: OAuthScope[] = DEFAULT_SCOPES,
-  state?: string,
+  options: { scopes?: readonly OAuthScope[]; state?: string } = {},
 ): string {
-  const baseUrl = config.baseUrl || 'https://api-next.vairified.com/api/v1';
-
-  // Ensure profile:read is always included
-  const scopeSet = new Set(scopes);
-  scopeSet.add('profile:read');
-  const scopeList = Array.from(scopeSet);
+  const baseUrl = (config.baseUrl ?? 'https://api-next.vairified.com/api/v1').replace(/\/+$/, '');
+  const scopeList = ensureProfileRead(options.scopes ?? DEFAULT_SCOPES);
 
   const params = new URLSearchParams({
     redirect_uri: config.redirectUri,
     scope: scopeList.join(','),
     response_type: 'code',
   });
-
-  if (state) {
-    params.set('state', state);
+  if (options.state) {
+    params.set('state', options.state);
   }
 
-  // The actual authorization is done via API call, this builds the frontend URL
-  // Partners should POST to /partner/oauth/authorize to get the actual auth URL
   return `${baseUrl}/partner/oauth/authorize?${params.toString()}`;
 }
 
 /**
- * Check if a scope is valid.
- *
- * @param scope - Scope string to validate
- * @returns True if scope is valid
+ * Check whether a scope string is one the Vairified server accepts.
  *
  * @category OAuth
  */
@@ -146,28 +136,28 @@ export function validateScope(scope: string): scope is OAuthScope {
 }
 
 /**
- * Get a human-readable description of a scope.
+ * Get a human-readable description of an OAuth scope.
  *
- * @param scope - Scope string
- * @returns Description of what the scope grants access to
+ * Returns `"Unknown scope: {scope}"` for unrecognized scopes so this
+ * function is safe to call on user-supplied input.
  *
  * @category OAuth
  */
-export function describeScope(scope: OAuthScope): string {
-  return SCOPES[scope] ?? `Unknown scope: ${scope}`;
+export function describeScope(scope: string): string {
+  if (validateScope(scope)) {
+    return SCOPES[scope];
+  }
+  return `Unknown scope: ${scope}`;
 }
 
 /**
- * Get descriptions for multiple scopes.
- *
- * @param scopes - List of scope strings
- * @returns Array of objects with scope and description
+ * Describe multiple scopes at once.
  *
  * @category OAuth
  */
 export function describeScopes(
-  scopes: OAuthScope[],
-): Array<{ scope: OAuthScope; description: string }> {
+  scopes: readonly string[],
+): readonly { scope: string; description: string }[] {
   return scopes.map((scope) => ({
     scope,
     description: describeScope(scope),
@@ -175,23 +165,36 @@ export function describeScopes(
 }
 
 /**
- * Generate a random state parameter for CSRF protection.
+ * Generate a cryptographically-random CSRF state token suitable for
+ * use with {@link OAuthResource.authorize}.
  *
- * @returns Random 32-character hexadecimal string
+ * Uses the Web Crypto API (available in Node 19+ and all modern
+ * browsers). The returned string is URL-safe base64 of 32 random bytes.
  *
  * @category OAuth
  */
 export function generateState(): string {
-  const array = new Uint8Array(16);
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    crypto.getRandomValues(array);
-  } else {
-    // Fallback for environments without crypto
-    for (let i = 0; i < array.length; i++) {
-      array[i] = Math.floor(Math.random() * 256);
-    }
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let binary = '';
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
   }
-  return Array.from(array)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers (used by resources/oauth.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Ensure `profile:read` is in the scope list, prepending if necessary.
+ *
+ * @internal
+ */
+export function ensureProfileRead(scopes: readonly OAuthScope[]): readonly OAuthScope[] {
+  if (scopes.includes('profile:read')) {
+    return scopes;
+  }
+  return ['profile:read', ...scopes];
 }

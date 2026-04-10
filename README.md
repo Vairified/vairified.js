@@ -1,18 +1,22 @@
-<h1 align="center">Vairified JavaScript SDK</h1>
+<h1 align="center">Vairified TypeScript SDK</h1>
 
 <p align="center">
   <strong>Official TypeScript/JavaScript SDK for the Vairified Partner API</strong><br>
-  Player ratings, search, and match submission
+  Multi-sport player ratings, search, and bulk match submission
 </p>
 
 <p align="center">
   <a href="https://github.com/Vairified/vairified.js/actions/workflows/ci.yml"><img src="https://github.com/Vairified/vairified.js/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://www.npmjs.com/package/vairified"><img src="https://img.shields.io/npm/v/vairified.svg" alt="npm"></a>
+  <img src="https://img.shields.io/badge/node-%3E%3D24-blue.svg" alt="Node.js 24+">
+  <img src="https://img.shields.io/badge/deps-0-green.svg" alt="Zero dependencies">
 </p>
 
 ---
 
-TypeScript/JavaScript SDK for integrating with the [Vairified](https://vairified.com) player rating platform. Zero dependencies, works in Node.js and browsers.
+Async-first TypeScript SDK for the [Vairified](https://vairified.com) Partner API. Built on
+native `fetch` with **zero runtime dependencies**. Sub-resource layout, auto-paginating search,
+n-team × n-game match submission, and `await using` lifecycle support on Node 24+.
 
 ## Installation
 
@@ -20,7 +24,7 @@ TypeScript/JavaScript SDK for integrating with the [Vairified](https://vairified
 npm install vairified
 ```
 
-Or with other package managers:
+Or with any other package manager:
 
 ```bash
 yarn add vairified
@@ -30,413 +34,341 @@ bun add vairified
 
 ## Quick Start
 
-```typescript
+```ts
 import { Vairified } from 'vairified';
 
-const client = new Vairified({ apiKey: 'vair_pk_xxx' });
+await using client = new Vairified({ apiKey: 'vair_pk_xxx' });
 
-// Get a member - automatically subscribes to their rating updates
-const member = await client.getMember('clerk_user_123');
-console.log(`${member.name}: ${member.rating}`);
-console.log(`Verified: ${member.isVairified}`);
-console.log(`Best rating: ${member.ratingSplits.best}`);
+const member = await client.members.get('vair_mem_xxx');
+console.log(member.name, 'rated', member.ratingFor('pickleball'));
 ```
 
-## Features
+`await using` (TypeScript 5.2+, Node 20+) closes the client deterministically when the block
+exits. If you can't use it, call `await client.close()` manually.
 
-### Search for Players
+## Sub-resources
 
-```typescript
-const client = new Vairified({ apiKey: 'vair_pk_xxx' });
+Every operation lives on a sub-resource that mirrors the REST path:
 
-// Search with filters
-const results = await client.search({
+| Sub-resource            | Operations                                                  |
+|-------------------------|-------------------------------------------------------------|
+| `client.members`        | `get`, `search`, `find`, `ratingUpdates`                    |
+| `client.matches`        | `submit`, `testWebhook`                                     |
+| `client.oauth`          | `authorize`, `exchangeToken`, `refresh`, `revoke`           |
+| `client.leaderboard`    | `list`, `rank`, `categories`                                |
+| `client.usage()`        | Rate-limit + request-count stats                            |
+
+## Members
+
+### Get a connected member
+
+```ts
+const member = await client.members.get('vair_mem_xxx');
+
+console.log(member.name);                      // Full name
+console.log(member.displayName);                // "Mike B."
+console.log(member.ratingFor('pickleball'));    // 3.915
+console.log(member.status.isVairified);         // true
+
+// Dict-like access to rating splits for a specific sport
+const pb = member.sport.get('pickleball');
+if (pb) {
+  console.log(pb.rating, pb.abbr);              // 3.915 VO
+  console.log(pb.get('overall-open')?.rating);  // 3.915
+  console.log(pb.has('singles-open'));          // true
+  for (const [key, split] of pb) {
+    console.log(key, split.rating);
+  }
+}
+```
+
+### Filter ratings to specific sports
+
+```ts
+// Just pickleball
+const member = await client.members.get('vair_mem_xxx', { sport: 'pickleball' });
+
+// Multiple sports
+const member2 = await client.members.get('vair_mem_xxx', {
+  sport: ['pickleball', 'padel'],
+});
+```
+
+### Auto-paginating search
+
+`search()` is an async generator — iterate directly with `for await`. Pages are fetched
+lazily, so memory usage stays bounded regardless of result count.
+
+```ts
+for await (const member of client.members.search({
   city: 'Austin',
   state: 'TX',
   ratingMin: 3.5,
   ratingMax: 4.5,
   vairifiedOnly: true,
-  limit: 20,
-});
-
-// Iterate over results
-for (const player of results) {
-  console.log(`${player.name}: ${player.rating}`);
+})) {
+  console.log(member.name, member.ratingFor('pickleball'));
 }
 
-// Pagination
-console.log(`Page ${results.page} of ${results.pages}`);
-if (results.hasMore) {
-  const nextPage = await results.nextPage();
+// Cap with maxResults, or break out early
+const top20: Member[] = [];
+for await (const m of client.members.search({ name: 'Smith', maxResults: 20 })) {
+  top20.push(m);
 }
 ```
 
-### Find a Player by Name
+### Find by name (first hit only)
 
-```typescript
-const player = await client.findPlayer('John Smith');
-if (player) {
-  console.log(`Found: ${player.name} (${player.rating})`);
+```ts
+const mike = await client.members.find('Mike Barker');
+if (mike) {
+  console.log(mike.ratingFor('pickleball'));
 }
 ```
 
-### Submit Match Results
+### Rating change notifications
 
-```typescript
-import { Vairified, Match } from 'vairified';
+```ts
+const updates = await client.members.ratingUpdates();
+for (const update of updates) {
+  const arrow = update.improved ? '↑' : '↓';
+  console.log(`${update.displayName} ${arrow} delta=${update.delta?.toFixed(3)}`);
+}
+```
 
-const client = new Vairified({ apiKey: 'vair_pk_xxx' });
+## Match Submission
 
-// Doubles match: 11-9, 11-7
-const match = new Match({
-  event: 'Weekly League',
+Matches are submitted as a `MatchBatch` — defaults at the batch level apply to every
+match unless overridden. The shape is n-team × n-game, so singles, doubles, and
+round-robin all go through the same path.
+
+```ts
+const result = await client.matches.submit({
+  sport: 'pickleball',
+  winScore: 11,
+  winBy: 2,
   bracket: '4.0 Doubles',
-  date: new Date(),
-  team1: ['player1_id', 'player2_id'],
-  team2: ['player3_id', 'player4_id'],
-  scores: [[11, 9], [11, 7]],
+  event: 'Weekly League',
+  matchDate: '2026-04-11T14:00:00Z',
+  matches: [
+    {
+      identifier: 'm1',
+      teams: [
+        ['vair_mem_aaa', 'vair_mem_bbb'],
+        ['vair_mem_ccc', 'vair_mem_ddd'],
+      ],
+      games: [{ scores: [11, 8] }, { scores: [11, 5] }],
+    },
+    {
+      identifier: 'm2',
+      teams: [['vair_mem_eee'], ['vair_mem_fff']],   // singles
+      games: [{ scores: [11, 9] }, { scores: [11, 7] }],
+    },
+  ],
 });
 
-const result = await client.submitMatch(match);
 if (result.ok) {
-  console.log(`Submitted ${result.numGames} games`);
+  console.log(`Submitted ${result.numGames} games in ${result.numMatches} matches`);
 }
-
-// Singles match
-const singles = new Match({
-  event: 'Club Singles',
-  bracket: 'Open Singles',
-  date: new Date(),
-  team1: ['player1_id'],
-  team2: ['player2_id'],
-  scores: [[11, 8], [9, 11], [11, 6]],
-});
-await client.submitMatch(singles);
 ```
 
-### Leaderboard
+Set `dryRun: true` on the batch to validate without persisting — your API key must have
+the `dry-run` scope.
 
-```typescript
-import { Vairified } from 'vairified';
+## OAuth Connect Flow
 
-const client = new Vairified({ apiKey: 'vair_pk_xxx' });
+```ts
+import { Vairified, OAuthError, generateState } from 'vairified';
 
-// Get global doubles leaderboard
-const leaderboard = await client.getLeaderboard();
+await using client = new Vairified({ apiKey: 'vair_pk_xxx' });
 
-// Get state-level singles leaderboard
-const txLeaderboard = await client.getLeaderboard({
+// Step 1 — start authorization
+const state = generateState();
+const auth = await client.oauth.authorize({
+  redirectUri: 'https://myapp.com/oauth/callback',
+  scopes: ['profile:read', 'rating:read', 'match:submit'],
+  state,
+});
+// Redirect user to auth.authorizationUrl
+
+// Step 2 — exchange the callback code
+const tokens = await client.oauth.exchangeToken({
+  code: 'code-from-callback',
+  redirectUri: 'https://myapp.com/oauth/callback',
+});
+const { accessToken, refreshToken, playerId } = tokens;
+
+// Step 3 — refresh when the access token expires
+try {
+  const newTokens = await client.oauth.refresh(refreshToken!);
+} catch (err) {
+  if (err instanceof OAuthError && err.errorCode === 'invalid_grant') {
+    // User must re-authorize
+  }
+}
+
+// Step 4 — revoke the connection
+await client.oauth.revoke(playerId);
+```
+
+`OAuthScope` is a string literal union, so your editor will catch typos:
+
+```ts
+import type { OAuthScope } from 'vairified';
+
+const scopes: OAuthScope[] = ['profile:read', 'rating:read']; // ok
+const bad: OAuthScope[] = ['profile:read', 'rating']; // type error
+```
+
+### Available scopes
+
+| Scope                | Description                                    |
+|----------------------|------------------------------------------------|
+| `profile:read`       | Name, location, verification status            |
+| `profile:email`      | Email address                                  |
+| `rating:read`        | Current rating and rating splits               |
+| `rating:history`     | Complete rating history                        |
+| `match:submit`       | Submit matches on behalf of user               |
+| `webhook:subscribe`  | Rating change notifications                    |
+
+## Leaderboards
+
+```ts
+// Global leaderboard
+const lb = await client.leaderboard.list();
+
+// Texas singles, verified only
+const tx = await client.leaderboard.list({
   category: 'singles',
   scope: 'state',
   state: 'TX',
+  verifiedOnly: true,
   limit: 50,
 });
 
-// Get 50+ age bracket with verified players only
-const seniorLeaderboard = await client.getLeaderboard({
-  ageBracket: '50+',
-  verifiedOnly: true,
-});
-
-// Display results
-for (const player of leaderboard.players) {
-  console.log(`#${player.rank} ${player.displayName}: ${player.rating}`);
-}
-
-// Get a specific player's rank
-const rank = await client.getPlayerRank('vair_mem_xxx', {
+// A specific player's rank with 5 players on either side
+const rank = await client.leaderboard.rank('vair_mem_xxx', {
   category: 'doubles',
   contextSize: 5,
 });
-console.log(`Rank: #${rank.rank} (top ${rank.percentile.toFixed(1)}%)`);
 
-// Get available categories
-const categories = await client.getLeaderboardCategories();
-console.log('Categories:', categories.categories.map(c => c.name));
-```
-
-### Get Rating Updates
-
-```typescript
-// First, look up members to subscribe to their updates
-await client.getMember('user_1');
-await client.getMember('user_2');
-
-// Later, check for rating changes
-const updates = await client.getRatingUpdates();
-for (const update of updates) {
-  const direction = update.improved ? 'improved' : 'dropped';
-  console.log(`${update.memberId} ${direction}: ${update.previousRating} -> ${update.newRating}`);
-
-  // Get the full member profile
-  const member = await update.getMember();
-}
-```
-
-### OAuth Connect Flow
-
-Connect players to your application using OAuth to access their profile and rating data.
-
-```typescript
-import { Vairified, generateState, OAuthError } from 'vairified';
-
-const client = new Vairified({ apiKey: 'vair_pk_xxx' });
-
-// Step 1: Start authorization
-const state = generateState(); // CSRF protection
-const auth = await client.startOAuth(
-  'https://myapp.com/oauth/callback',
-  ['profile:read', 'rating:read', 'match:submit'],
-  state,
-);
-
-// Redirect user to auth.authorizationUrl
-window.location.href = auth.authorizationUrl;
-```
-
-```typescript
-// Step 2: Handle callback (in your /oauth/callback route)
-const client = new Vairified({ apiKey: 'vair_pk_xxx' });
-
-// Exchange code for tokens
-const code = new URL(window.location.href).searchParams.get('code')!;
-const tokens = await client.exchangeToken(code, 'https://myapp.com/oauth/callback');
-
-// Store tokens securely
-const { playerId, accessToken, refreshToken } = tokens;
-
-// Now you can access the player's data
-const member = await client.getMember(playerId);
-console.log(`Connected: ${member.name} (${member.rating})`);
-```
-
-```typescript
-// Step 3: Refresh expired tokens
-try {
-  const newTokens = await client.refreshAccessToken(storedRefreshToken);
-  // Update stored tokens
-} catch (e) {
-  if (e instanceof OAuthError && e.errorCode === 'invalid_grant') {
-    // Token revoked, user needs to re-authorize
-  }
-}
-```
-
-### Available OAuth Scopes
-
-| Scope | Description |
-|-------|-------------|
-| `profile:read` | Name, location, verification status |
-| `profile:email` | Email address |
-| `rating:read` | Current rating and rating splits |
-| `rating:history` | Complete rating history |
-| `match:submit` | Submit matches on behalf of user |
-| `webhook:subscribe` | Rating change notifications |
-
-### Revoke Connection
-
-```typescript
-await client.revokeConnection('vair_mem_xxx');
-```
-
-## Models
-
-### Player
-
-```typescript
-player.id              // UUID or member ID
-player.memberId        // Legacy member ID
-player.name            // "John Smith"
-player.firstName       // "John"
-player.lastName        // "Smith"
-player.rating          // 4.25
-player.isVairified     // true/false
-player.ratingSplits    // RatingSplits object
-player.city            // "Austin"
-player.state           // "TX"
-player.verifiedRating  // Best verified rating
-```
-
-### Member (extends Player)
-
-```typescript
-member.email           // Email address
-await member.refresh() // Refresh data from API
-```
-
-### RatingSplits
-
-Access ratings by category:
-
-```typescript
-const splits = member.ratingSplits;
-splits.open           // Open division rating
-splits.gender         // Same-gender doubles rating
-splits.mixed          // Mixed doubles rating
-splits.recreational   // Recreational rating
-splits.singles        // Singles rating
-splits.best           // Best available rating
-splits.get('50_and_up')  // Age bracket rating
-```
-
-### Match
-
-```typescript
-const match = new Match({
-  event: 'Weekly League',
-  bracket: '4.0 Doubles',
-  date: new Date(),
-  team1: ['id1', 'id2'],         // Player IDs for team 1
-  team2: ['id3', 'id4'],         // Player IDs for team 2
-  scores: [[11, 9], [11, 7]],    // Game scores
-  location: 'Austin Club',       // Optional
-  matchType: 'SIDEOUT',          // Default: "SIDEOUT"
-  source: 'PARTNER',             // Default: "PARTNER"
-});
-
-match.format         // "DOUBLES" or "SINGLES"
-match.winner         // 1 or 2 (0 if tie)
-match.scoreSummary   // "11-9, 11-7"
-match.identifier     // Auto-generated unique ID
-```
-
-### MatchResult
-
-```typescript
-const result = await client.submitMatches([match1, match2]);
-result.success       // true/false
-result.numMatches    // Number processed
-result.numGames      // Games recorded
-result.dryRun        // true if validation only
-result.message       // Human-readable message
-result.errors        // Array of errors
-result.ok            // true if successful
-```
-
-### SearchResults
-
-```typescript
-results.players      // Array of Player objects
-results.total        // Total matching players
-results.page         // Current page
-results.pages        // Total pages
-results.hasMore      // More pages available
-await results.nextPage()  // Get next page
-results.length       // Players on current page
-results.at(0)        // Get by index
-for (const p of results) { }  // Iterable
+// Available categories, brackets, scopes
+const categories = await client.leaderboard.categories();
 ```
 
 ## Configuration
 
-```typescript
+```ts
 import { Vairified } from 'vairified';
 
-// Basic usage
-const client = new Vairified({ apiKey: 'vair_pk_xxx' });
+// Environment preset
+const client = new Vairified({ apiKey: 'vair_pk_xxx', env: 'production' }); // default
+const staging = new Vairified({ apiKey: 'vair_pk_xxx', env: 'staging' });
+const local = new Vairified({ apiKey: 'vair_pk_xxx', env: 'local' });
 
-// Use staging for development/testing
-const client = new Vairified({ apiKey: 'vair_pk_xxx', env: 'staging' });
-
-// Custom configuration
-const client = new Vairified({
+// Custom base URL (overrides env)
+const custom = new Vairified({
   apiKey: 'vair_pk_xxx',
-  timeout: 30000,
+  baseUrl: 'http://localhost:3001/api/v1',
+  timeoutMs: 30_000,
+});
+
+// Inject a custom fetch (test shims, non-Node environments)
+const withFetch = new Vairified({
+  apiKey: 'vair_pk_xxx',
+  fetch: customFetchImpl,
 });
 ```
 
-### Environment Variables
+### Environment variables
 
 ```bash
 export VAIRIFIED_API_KEY="vair_pk_xxx"
+export VAIRIFIED_ENV="staging"   # optional; default: production
 ```
 
-```typescript
-// API key read from environment (Node.js only)
-const client = new Vairified();
+```ts
+const client = new Vairified();   // reads both env vars
 ```
-
-## API Key Scopes
-
-Your API key determines which endpoints you can access. The scope system uses a hierarchy:
-
-```
-admin → write → read → granular scopes
-```
-
-| Scope | Access |
-|-------|--------|
-| `admin` | Full access to all endpoints |
-| `write` | All read + write operations |
-| `read` | All read operations (search, leaderboard, member) |
-| `leaderboard:read` | Leaderboard endpoints only |
-| `player:search` | Player search only |
-| `member:read` | Connected member data only |
-| `match:submit` | Submit match results |
-| `tournament:import` | Import tournament data |
-| `dry-run` | Validate writes without persisting |
-
-## Dry-Run Mode (Dev Keys)
-
-If your API key has the `dry-run` scope, match submissions are **validated but not persisted**. This is useful for testing integrations without affecting production data.
-
-```typescript
-// With a dry-run API key
-const client = new Vairified({ apiKey: 'vair_pk_dev_xxx' });
-const result = await client.submitMatches([match1, match2]);
-
-if (result.dryRun) {
-  console.log(`Validation passed: ${result.numGames} games would be created`);
-  console.log(result.message);
-}
-```
-
-Request a dry-run API key from your Vairified partner contact for integration testing.
 
 ## Error Handling
 
-```typescript
+The SDK maps HTTP status codes to typed exceptions. All typed exceptions inherit from
+`VairifiedError`, so a single `catch` can handle everything.
+
+```ts
 import {
   Vairified,
   VairifiedError,
   RateLimitError,
   AuthenticationError,
   NotFoundError,
+  ValidationError,
   OAuthError,
 } from 'vairified';
 
-const client = new Vairified({ apiKey: 'vair_pk_xxx' });
-
 try {
-  const member = await client.getMember('user_123');
-} catch (error) {
-  if (error instanceof RateLimitError) {
-    console.log(`Rate limited. Retry after ${error.retryAfter} seconds`);
-  } else if (error instanceof AuthenticationError) {
+  const member = await client.members.get('vair_mem_xxx');
+} catch (err) {
+  if (err instanceof RateLimitError) {
+    console.log(`Rate limited; retry after ${err.retryAfter}s`);
+  } else if (err instanceof AuthenticationError) {
     console.log('Invalid API key');
-  } else if (error instanceof NotFoundError) {
+  } else if (err instanceof NotFoundError) {
     console.log('Member not found');
-  } else if (error instanceof OAuthError) {
-    console.log(`OAuth error: ${error.message} (code: ${error.errorCode})`);
-  } else if (error instanceof VairifiedError) {
-    console.log(`API error: ${error.message} (status: ${error.statusCode})`);
+  } else if (err instanceof ValidationError) {
+    console.log(`Bad request: ${err.message}`);
+  } else if (err instanceof OAuthError) {
+    console.log(`OAuth error: ${err.message} (code: ${err.errorCode})`);
+  } else if (err instanceof VairifiedError) {
+    console.log(`API error: ${err.message} (status: ${err.statusCode})`);
+  } else {
+    throw err;
   }
 }
 ```
 
-## TypeScript
+## Models
 
-Full TypeScript support with exported types:
+Response models are immutable classes wrapping the wire payload. They expose computed
+getters (`member.name`, `update.delta`) and support iteration where it makes sense
+(`for (const [key, split] of sportRating)`).
 
-```typescript
-import type {
-  MatchInput,
-  MatchResultData,
-  PlayerData,
-  SearchFilters,
-  VairifiedOptions,
-} from 'vairified';
+### `Member`
+
+```ts
+member.memberId                   // Numeric member ID (public)
+member.id                         // UUID | null
+member.name                       // Full name (getter)
+member.displayName                // "Mike B."
+member.firstName / lastName
+member.gender                     // 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN' | null
+member.age / city / state / zip / country
+member.status.isVairified         // grouped status flags
+member.status.isConnected
+member.sport                      // MemberSportMap
+member.sports                     // readonly string[] of sport codes
+member.ratingFor('pickleball')    // number | null
+member.split('overall-open')      // RatingSplitWire | null
 ```
+
+### `SportRating` (dict-like)
+
+```ts
+const pb = member.sport.get('pickleball');
+pb?.rating              // Primary rating for this sport
+pb?.abbr                // "VO", "VG", etc.
+pb?.get('overall-open') // Any split key
+pb?.size                // Number of splits
+pb?.has('singles-40+')  // Membership check
+for (const [key, split] of pb ?? []) { /* iterate */ }
+```
+
+## Migrating from 0.1.x
+
+Version 0.2.0 is a breaking rewrite. See the
+[migration guide](https://vairified.github.io/vairified.js/migrating) for the full diff
+and [CHANGELOG.md](CHANGELOG.md) for the release notes.
 
 ## Development
 
@@ -445,16 +377,17 @@ git clone https://github.com/Vairified/vairified.js.git
 cd vairified.js
 npm install
 npm test
+npm run build
 ```
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
 <p align="center">
-  <a href="https://vairified.com">vairified.com</a> · 
-  <a href="https://vairified.github.io/vairified.js">Documentation</a> · 
+  <a href="https://vairified.com">vairified.com</a> ·
+  <a href="https://vairified.github.io/vairified.js">Documentation</a> ·
   <a href="mailto:support@vairified.com">Support</a>
 </p>
