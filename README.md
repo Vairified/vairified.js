@@ -50,13 +50,14 @@ exits. If you can't use it, call `await client.close()` manually.
 
 Every operation lives on a sub-resource that mirrors the REST path:
 
-| Sub-resource            | Operations                                                  |
-|-------------------------|-------------------------------------------------------------|
-| `client.members`        | `get`, `search`, `find`, `ratingUpdates`                    |
-| `client.matches`        | `submit`, `testWebhook`                                     |
-| `client.oauth`          | `authorize`, `exchangeToken`, `refresh`, `revoke`           |
-| `client.leaderboard`    | `list`, `rank`, `categories`                                |
-| `client.usage()`        | Rate-limit + request-count stats                            |
+| Sub-resource            | Operations                                                       |
+|-------------------------|------------------------------------------------------------------|
+| `client.members`        | `get`, `getBulk`, `search`, `find`, `ratingUpdates`              |
+| `client.matches`        | `submit`, `tournamentImport`, `testWebhook`                      |
+| `client.oauth`          | `authorize`, `exchangeToken`, `refresh`, `revoke`                |
+| `client.webhooks`       | `deliveries`                                                     |
+| `client.leaderboard`    | `list`, `rank`, `categories`                                     |
+| `client.usage()`        | Rate-limit + request-count stats                                 |
 
 ## Members
 
@@ -81,6 +82,22 @@ if (pb) {
   }
 }
 ```
+
+### Bulk member lookup
+
+Fetch up to 100 members in one call by their integer member IDs:
+
+```ts
+const members = await client.members.getBulk([4873327, 4873328, 4873329]);
+for (const m of members) {
+  console.log(m.name, m.ratingFor('pickleball'));
+}
+
+// Filter to a specific sport
+const pb = await client.members.getBulk([4873327], { sport: 'pickleball' });
+```
+
+Unknown IDs are silently omitted — the returned array may be shorter than the input.
 
 ### Filter ratings to specific sports
 
@@ -173,7 +190,56 @@ if (result.ok) {
 ```
 
 Set `dryRun: true` on the batch to validate without persisting — your API key must have
-the `dry-run` scope.
+the `key:dry-run` scope.
+
+### Tournament import
+
+Import historical tournament results with automatic player matching. Unmatched players
+become ghost accounts that can be claimed later.
+
+```ts
+const result = await client.matches.tournamentImport({
+  tournamentName: 'Austin Open 2026',
+  sport: 'pickleball',
+  winScore: 11,
+  winBy: 2,
+  matches: [
+    {
+      identifier: 'USAP-R1-M1',
+      event: 'Austin Open',
+      bracket: "Men's Pro Doubles",
+      format: 'DOUBLES',
+      matchDate: '2026-04-11T10:00:00Z',
+      teamA: {
+        player1: { firstName: 'Ben', lastName: 'Johns' },
+        player2: { firstName: 'Matt', lastName: 'Wright' },
+        game1: 11, game2: 11,
+      },
+      teamB: {
+        player1: { firstName: 'JW', lastName: 'Johnson' },
+        player2: { firstName: 'Dylan', lastName: 'Frazier' },
+        game1: 7, game2: 9,
+      },
+    },
+  ],
+});
+console.log(`Imported ${result.matchesImported} matches, ${result.ghostPlayersCreated} ghosts`);
+```
+
+## Webhook Deliveries
+
+Inspect recent webhook delivery attempts for your app:
+
+```ts
+const result = await client.webhooks.deliveries({ status: 'failed', limit: 10 });
+for (const d of result.deliveries) {
+  console.log(d.event, d.statusCode, d.errorMessage);
+}
+
+// Filter by event type
+const ratingEvents = await client.webhooks.deliveries({ event: 'rating.updated' });
+console.log(`${ratingEvents.total} total rating.updated deliveries`);
+```
 
 ## OAuth Connect Flow
 
@@ -186,7 +252,7 @@ await using client = new Vairified({ apiKey: 'vair_pk_xxx' });
 const state = generateState();
 const auth = await client.oauth.authorize({
   redirectUri: 'https://myapp.com/oauth/callback',
-  scopes: ['profile:read', 'rating:read', 'match:submit'],
+  scopes: ['user:profile:read', 'user:rating:read', 'user:match:submit'],
   state,
 });
 // Redirect user to auth.authorizationUrl
@@ -216,20 +282,20 @@ await client.oauth.revoke(playerId);
 ```ts
 import type { OAuthScope } from 'vairified';
 
-const scopes: OAuthScope[] = ['profile:read', 'rating:read']; // ok
-const bad: OAuthScope[] = ['profile:read', 'rating']; // type error
+const scopes: OAuthScope[] = ['user:profile:read', 'user:rating:read']; // ok
+const bad: OAuthScope[] = ['user:profile:read', 'rating']; // type error
 ```
 
 ### Available scopes
 
-| Scope                | Description                                    |
-|----------------------|------------------------------------------------|
-| `profile:read`       | Name, location, verification status            |
-| `profile:email`      | Email address                                  |
-| `rating:read`        | Current rating and rating splits               |
-| `rating:history`     | Complete rating history                        |
-| `match:submit`       | Submit matches on behalf of user               |
-| `webhook:subscribe`  | Rating change notifications                    |
+| Scope                     | Description                                    |
+|---------------------------|------------------------------------------------|
+| `user:profile:read`       | Name, location, verification status            |
+| `user:profile:email`      | Email address                                  |
+| `user:rating:read`        | Current rating and rating splits               |
+| `user:rating:history`     | Complete rating history                        |
+| `user:match:submit`       | Submit matches on behalf of user               |
+| `user:webhook:subscribe`  | Rating change notifications                    |
 
 ## Leaderboards
 
@@ -364,9 +430,13 @@ pb?.has('singles-40+')  // Membership check
 for (const [key, split] of pb ?? []) { /* iterate */ }
 ```
 
-## Migrating from 0.1.x
+## Migrating
 
-Version 0.2.0 is a breaking rewrite. See the
+**From 0.2.x → 0.3.0:** All OAuth scope strings gained a `user:` prefix
+(`profile:read` → `user:profile:read`). Update any hardcoded scope arrays.
+New: `members.getBulk()`, `matches.tournamentImport()`, `webhooks.deliveries()`.
+
+**From 0.1.x → 0.2.0:** Full rewrite. See the
 [migration guide](https://vairified.github.io/vairified.js/documents/Migrating_from_0.1.x.html)
 for the full diff and [CHANGELOG.md](CHANGELOG.md) for the release notes.
 

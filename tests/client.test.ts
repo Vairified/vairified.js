@@ -12,9 +12,11 @@ import {
   NotFoundError,
   RateLimitError,
   SportRating,
+  TournamentImportResult,
   Vairified,
   VairifiedError,
   ValidationError,
+  WebhookDeliveriesResult,
 } from '../src/index.js';
 import { API_KEY, BASE_URL, installServer, memberPayload, server } from './helpers.js';
 
@@ -79,12 +81,13 @@ describe('Vairified client', () => {
     expect(client.baseUrl).toBe('https://x.example.com/api/v1');
   });
 
-  it('exposes all four sub-resources', () => {
+  it('exposes all five sub-resources', () => {
     const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
     expect(client.members).toBeDefined();
     expect(client.matches).toBeDefined();
     expect(client.oauth).toBeDefined();
     expect(client.leaderboard).toBeDefined();
+    expect(client.webhooks).toBeDefined();
   });
 
   it('has a useful toString', () => {
@@ -588,6 +591,177 @@ describe('Member model', () => {
     expect(String(member)).toContain('3.915');
   });
 });
+
+// ---------------------------------------------------------------------------
+// members.getBulk
+// ---------------------------------------------------------------------------
+
+describe('client.members.getBulk', () => {
+  it('returns an array of Members for a happy path', async () => {
+    server.use(
+      http.get(`${BASE_URL}/partner/members`, ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.searchParams.get('ids')).toBe('4873327,4873328');
+        return HttpResponse.json([
+          memberPayload({ memberId: 4873327 }),
+          memberPayload({ memberId: 4873328 }),
+        ]);
+      }),
+    );
+
+    const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
+    const members = await client.members.getBulk([4873327, 4873328]);
+    expect(members).toHaveLength(2);
+    expect(members[0]).toBeInstanceOf(Member);
+    expect(members[0]?.memberId).toBe(4873327);
+    expect(members[1]?.memberId).toBe(4873328);
+  });
+
+  it('passes sport filter as a query param', async () => {
+    let capturedSport: string | null = null;
+    server.use(
+      http.get(`${BASE_URL}/partner/members`, ({ request }) => {
+        capturedSport = new URL(request.url).searchParams.get('sport');
+        return HttpResponse.json([memberPayload()]);
+      }),
+    );
+
+    const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
+    await client.members.getBulk([4873327], { sport: 'pickleball' });
+    expect(capturedSport).toBe('pickleball');
+  });
+
+  it('throws ValidationError when more than 100 IDs are provided', async () => {
+    const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
+    const ids = Array.from({ length: 101 }, (_, i) => i + 1);
+    await expect(client.members.getBulk(ids)).rejects.toThrowError(ValidationError);
+    try {
+      await client.members.getBulk(ids);
+    } catch (err) {
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).message).toContain('100');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// matches.tournamentImport
+// ---------------------------------------------------------------------------
+
+describe('client.matches.tournamentImport', () => {
+  it('wraps the wire response in a TournamentImportResult', async () => {
+    let capturedBody: unknown = null;
+    server.use(
+      http.post(`${BASE_URL}/partner/tournament-import`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({
+          success: true,
+          matchesImported: 12,
+          gamesRecorded: 36,
+          ghostPlayersCreated: 2,
+          existingPlayersMatched: 22,
+          message: 'Import completed',
+        });
+      }),
+    );
+
+    const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
+    const result = await client.matches.tournamentImport({
+      sport: 'pickleball',
+      tournamentName: 'Spring Classic',
+      matches: [],
+    });
+
+    expect(result).toBeInstanceOf(TournamentImportResult);
+    expect(result.ok).toBe(true);
+    expect(result.matchesImported).toBe(12);
+    expect(result.gamesRecorded).toBe(36);
+    expect(result.ghostPlayersCreated).toBe(2);
+    expect(result.existingPlayersMatched).toBe(22);
+    expect(result.dryRun).toBe(false);
+    expect(result.message).toBe('Import completed');
+    expect(result.errors).toEqual([]);
+    expect(capturedBody).toMatchObject({ sport: 'pickleball', tournamentName: 'Spring Classic' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// webhooks.deliveries
+// ---------------------------------------------------------------------------
+
+describe('client.webhooks.deliveries', () => {
+  const deliveryWire = {
+    id: 'del_001',
+    event: 'rating.updated',
+    url: 'https://hook.example.com/v1',
+    statusCode: 200,
+    responseBody: '{"ok":true}',
+    errorMessage: null,
+    attempts: 1,
+    maxAttempts: 3,
+    lastAttemptAt: '2026-04-11T10:00:00Z',
+    nextRetryAt: null,
+    completedAt: '2026-04-11T10:00:01Z',
+    createdAt: '2026-04-11T09:59:59Z',
+    payload: { memberId: 42, newRating: 4.2 },
+  };
+
+  it('returns a WebhookDeliveriesResult on happy path', async () => {
+    server.use(
+      http.get(`${BASE_URL}/partner/webhook-deliveries`, () =>
+        HttpResponse.json({ deliveries: [deliveryWire], total: 1 }),
+      ),
+    );
+
+    const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
+    const result = await client.webhooks.deliveries();
+    expect(result).toBeInstanceOf(WebhookDeliveriesResult);
+    expect(result.total).toBe(1);
+    expect(result.deliveries).toHaveLength(1);
+    expect(result.deliveries[0]?.event).toBe('rating.updated');
+    expect(result.deliveries[0]?.succeeded).toBe(true);
+  });
+
+  it('passes filter params as query strings', async () => {
+    let params: URLSearchParams | null = null;
+    server.use(
+      http.get(`${BASE_URL}/partner/webhook-deliveries`, ({ request }) => {
+        params = new URL(request.url).searchParams;
+        return HttpResponse.json({ deliveries: [], total: 0 });
+      }),
+    );
+
+    const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
+    await client.webhooks.deliveries({
+      event: 'rating.updated',
+      status: 'failed',
+      limit: 10,
+      offset: 20,
+    });
+
+    expect(params?.get('event')).toBe('rating.updated');
+    expect(params?.get('status')).toBe('failed');
+    expect(params?.get('limit')).toBe('10');
+    expect(params?.get('offset')).toBe('20');
+  });
+
+  it('returns empty results', async () => {
+    server.use(
+      http.get(`${BASE_URL}/partner/webhook-deliveries`, () =>
+        HttpResponse.json({ deliveries: [], total: 0 }),
+      ),
+    );
+
+    const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
+    const result = await client.webhooks.deliveries();
+    expect(result.deliveries).toHaveLength(0);
+    expect(result.total).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Model classes — Member, SportRating, RatingUpdate, MatchBatchResult
+// ---------------------------------------------------------------------------
 
 describe('MatchBatchResult model', () => {
   it('exposes ok and isDryRun getters', () => {

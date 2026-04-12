@@ -64,6 +64,9 @@ export {
   MemberSportMap,
   RatingUpdate,
   SportRating,
+  TournamentImportResult,
+  WebhookDeliveriesResult,
+  WebhookDelivery,
 } from './models/index.js';
 export type {
   AuthorizationResponse,
@@ -87,6 +90,7 @@ export {
   MatchesResource,
   MembersResource,
   OAuthResource,
+  WebhooksResource,
 } from './resources/index.js';
 // ---- Types (request shapes + wire types) ----
 export type {
@@ -104,6 +108,9 @@ export type {
   RatingSplitWire,
   SearchFilters,
   SportRatingWire,
+  TournamentImportResultWire,
   VairifiedEnvironment,
   VairifiedOptions,
+  WebhookDeliveriesResultWire,
+  WebhookDeliveryWire,
 } from './types.js';

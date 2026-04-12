@@ -34,7 +34,7 @@ describe('oauth helpers', () => {
   });
 
   it('describes known scopes', () => {
-    expect(describeScope('profile:read').toLowerCase()).toContain('verification');
+    expect(describeScope('user:profile:read').toLowerCase()).toContain('verification');
   });
 
   it('flags unknown scopes in describeScope', () => {
@@ -43,13 +43,16 @@ describe('oauth helpers', () => {
   });
 
   it('describeScopes returns parallel list', () => {
-    const result = describeScopes(['profile:read', 'rating:read']);
+    const result = describeScopes(['user:profile:read', 'user:rating:read']);
     expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({ scope: 'profile:read', description: SCOPES['profile:read'] });
+    expect(result[0]).toEqual({
+      scope: 'user:profile:read',
+      description: SCOPES['user:profile:read'],
+    });
   });
 
-  it('DEFAULT_SCOPES includes profile:read', () => {
-    expect(DEFAULT_SCOPES).toContain('profile:read');
+  it('DEFAULT_SCOPES includes user:profile:read', () => {
+    expect(DEFAULT_SCOPES).toContain('user:profile:read');
   });
 
   it('generateState returns URL-safe random strings', () => {
@@ -72,16 +75,16 @@ describe('getAuthorizationUrl', () => {
     const url = getAuthorizationUrl(config);
     expect(url).toContain('https://api.example.com/api/v1/partner/oauth/authorize?');
     expect(url).toContain('redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback');
-    expect(url).toContain('scope=profile%3Aread%2Crating%3Aread');
+    expect(url).toContain('scope=user%3Aprofile%3Aread%2Cuser%3Arating%3Aread');
     expect(url).toContain('response_type=code');
   });
 
-  it('auto-prepends profile:read to custom scopes', () => {
+  it('auto-prepends user:profile:read to custom scopes', () => {
     const url = getAuthorizationUrl(config, {
-      scopes: ['rating:read', 'match:submit'],
+      scopes: ['user:rating:read', 'user:match:submit'],
     });
-    expect(url).toContain('profile%3Aread');
-    expect(url).toContain('match%3Asubmit');
+    expect(url).toContain('user%3Aprofile%3Aread');
+    expect(url).toContain('user%3Amatch%3Asubmit');
   });
 
   it('includes state when provided', () => {
@@ -125,7 +128,7 @@ describe('client.oauth', () => {
     const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
     const auth = await client.oauth.authorize({
       redirectUri: 'https://app.example.com/callback',
-      scopes: ['rating:read'],
+      scopes: ['user:rating:read'],
       state: 'csrf-xyz',
     });
 
@@ -133,8 +136,8 @@ describe('client.oauth', () => {
     expect(auth.code).toBe('auth-code-123');
     expect(auth.state).toBe('csrf-xyz');
     expect(body).toMatchObject({ state: 'csrf-xyz' });
-    // profile:read auto-prepended
-    expect(JSON.stringify(body)).toContain('profile:read');
+    // user:profile:read auto-prepended
+    expect(JSON.stringify(body)).toContain('user:profile:read');
   });
 
   it('authorize() uses DEFAULT_SCOPES when none are provided', async () => {
@@ -156,7 +159,7 @@ describe('client.oauth', () => {
       await client.oauth.authorize({
         redirectUri: 'https://app.example.com/callback',
         // biome-ignore lint/suspicious/noExplicitAny: testing bad input
-        scopes: ['profile:read', 'not-a-real-scope' as any],
+        scopes: ['user:profile:read', 'not-a-real-scope' as any],
       });
       expect.fail('should have thrown');
     } catch (err) {
@@ -172,7 +175,7 @@ describe('client.oauth', () => {
           accessToken: 'access-xyz',
           refreshToken: 'refresh-xyz',
           expiresIn: 3600,
-          scope: 'profile:read,rating:read',
+          scope: 'user:profile:read,user:rating:read',
           playerId: 'vair_mem_42',
         }),
       ),
@@ -184,7 +187,7 @@ describe('client.oauth', () => {
     });
     expect(tokens.accessToken).toBe('access-xyz');
     expect(tokens.refreshToken).toBe('refresh-xyz');
-    expect(tokens.scope).toEqual(['profile:read', 'rating:read']);
+    expect(tokens.scope).toEqual(['user:profile:read', 'user:rating:read']);
     expect(tokens.playerId).toBe('vair_mem_42');
   });
 
@@ -213,7 +216,7 @@ describe('client.oauth', () => {
           accessToken: 'new-access',
           refreshToken: 'new-refresh',
           expiresIn: 3600,
-          scope: 'profile:read',
+          scope: 'user:profile:read',
           playerId: 'vair_mem_42',
         }),
       ),
@@ -237,8 +240,8 @@ describe('client.oauth', () => {
       http.get(`${BASE_URL}/partner/oauth/scopes`, () =>
         HttpResponse.json({
           scopes: [
-            { name: 'profile:read', description: 'Profile access' },
-            { name: 'rating:read', description: 'Rating access' },
+            { name: 'user:profile:read', description: 'Profile access' },
+            { name: 'user:rating:read', description: 'Rating access' },
           ],
         }),
       ),
@@ -246,7 +249,7 @@ describe('client.oauth', () => {
     const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
     const scopes = await client.oauth.availableScopes();
     expect(scopes).toHaveLength(2);
-    expect(scopes[0]?.name).toBe('profile:read');
+    expect(scopes[0]?.name).toBe('user:profile:read');
   });
 
   it('availableScopes() returns [] when server response is unexpected', async () => {

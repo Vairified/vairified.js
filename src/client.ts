@@ -10,6 +10,7 @@ import {
   MatchesResource,
   MembersResource,
   OAuthResource,
+  WebhooksResource,
 } from './resources/index.js';
 import type { VairifiedEnvironment, VairifiedOptions } from './types.js';
 
@@ -77,6 +78,8 @@ export class Vairified {
   readonly oauth: OAuthResource;
   /** Leaderboard queries — list, rank, categories. */
   readonly leaderboard: LeaderboardResource;
+  /** Webhook delivery inspection — deliveries. */
+  readonly webhooks: WebhooksResource;
 
   readonly #transport: HttpTransport;
 
@@ -116,6 +119,7 @@ export class Vairified {
     this.matches = new MatchesResource(this.#transport);
     this.oauth = new OAuthResource(this.#transport);
     this.leaderboard = new LeaderboardResource(this.#transport);
+    this.webhooks = new WebhooksResource(this.#transport);
   }
 
   /**

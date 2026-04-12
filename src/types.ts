@@ -340,6 +340,61 @@ export interface PlayerRankOptions {
 }
 
 // ---------------------------------------------------------------------------
+// Tournament import — response
+// ---------------------------------------------------------------------------
+
+/**
+ * Wire shape for tournament import response.
+ *
+ * @category Matches
+ */
+export interface TournamentImportResultWire {
+  readonly success: boolean;
+  readonly matchesImported: number;
+  readonly gamesRecorded: number;
+  readonly ghostPlayersCreated: number;
+  readonly existingPlayersMatched: number;
+  readonly dryRun?: boolean;
+  readonly message?: string;
+  readonly errors?: readonly string[];
+}
+
+// ---------------------------------------------------------------------------
+// Webhook deliveries — response
+// ---------------------------------------------------------------------------
+
+/**
+ * Wire shape for a single webhook delivery attempt.
+ *
+ * @category Webhooks
+ */
+export interface WebhookDeliveryWire {
+  readonly id: string;
+  readonly event: string;
+  readonly url: string;
+  readonly statusCode: number | null;
+  readonly responseBody: string | null;
+  readonly errorMessage: string | null;
+  readonly attempts: number;
+  readonly maxAttempts: number;
+  readonly lastAttemptAt: string;
+  readonly nextRetryAt: string | null;
+  readonly completedAt: string | null;
+  readonly createdAt: string;
+  readonly payload: Record<string, unknown>;
+}
+
+/**
+ * Wire shape for paginated webhook delivery results.
+ *
+ * @category Webhooks
+ */
+export interface WebhookDeliveriesResultWire {
+  readonly deliveries: readonly WebhookDeliveryWire[];
+  readonly total: number;
+}
+
+// ---------------------------------------------------------------------------
 // Misc
 // ---------------------------------------------------------------------------
 

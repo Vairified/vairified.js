@@ -6,7 +6,8 @@
 
 import type { HttpTransport } from '../http.js';
 import { MatchBatchResult } from '../models/match-batch-result.js';
-import type { MatchBatch, MatchBatchResultWire } from '../types.js';
+import { TournamentImportResult } from '../models/tournament-import-result.js';
+import type { MatchBatch, MatchBatchResultWire, TournamentImportResultWire } from '../types.js';
 
 /**
  * Match submission — one call submits a full batch.
@@ -24,9 +25,9 @@ export class MatchesResource {
   /**
    * Submit a {@link MatchBatch} for rating calculation.
    *
-   * All players in every match must have granted the `match:submit`
+   * All players in every match must have granted the `user:match:submit`
    * scope via OAuth (unless your API key has the
-   * `match:submit:trusted` scope, which skips per-player consent).
+   * `user:match:submit:trusted` scope, which skips per-player consent).
    *
    * Set `batch.dryRun = true` to validate without persisting.
    *
@@ -59,6 +60,38 @@ export class MatchesResource {
       body: batch,
     });
     return new MatchBatchResult(wire);
+  }
+
+  /**
+   * Import tournament results.
+   *
+   * The request body is a free-form JSON object whose structure is
+   * defined by the Vairified tournament import schema. Set
+   * `body.dryRun = true` to validate without persisting.
+   *
+   * @param body - Tournament import payload.
+   * @returns {@link TournamentImportResult} with match/game counts.
+   * @category Matches
+   *
+   * @example
+   * ```ts
+   * const result = await client.matches.tournamentImport({
+   *   sport: 'pickleball',
+   *   tournamentName: 'Spring Classic',
+   *   matches: [...],
+   * });
+   * if (result.ok) {
+   *   console.log(`Imported ${result.matchesImported} matches`);
+   * }
+   * ```
+   */
+  async tournamentImport(body: Record<string, unknown>): Promise<TournamentImportResult> {
+    const wire = await this.#http.request<TournamentImportResultWire>({
+      method: 'POST',
+      path: '/partner/tournament-import',
+      body,
+    });
+    return new TournamentImportResult(wire);
   }
 
   /** Send a test payload to a webhook URL. */

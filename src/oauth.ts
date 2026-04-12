@@ -20,19 +20,19 @@
  * lets TypeScript catch typos at authoring time:
  *
  * ```ts
- * const scopes: OAuthScope[] = ['profile:read', 'rating:read']; // ok
- * const bad: OAuthScope[] = ['profile:read', 'rating']; // type error
+ * const scopes: OAuthScope[] = ['user:profile:read', 'user:rating:read']; // ok
+ * const bad: OAuthScope[] = ['user:profile:read', 'rating']; // type error
  * ```
  *
  * @category OAuth
  */
 export type OAuthScope =
-  | 'profile:read'
-  | 'profile:email'
-  | 'rating:read'
-  | 'rating:history'
-  | 'match:submit'
-  | 'webhook:subscribe';
+  | 'user:profile:read'
+  | 'user:profile:email'
+  | 'user:rating:read'
+  | 'user:rating:history'
+  | 'user:match:submit'
+  | 'user:webhook:subscribe';
 
 /**
  * Human-readable description for every OAuth scope.
@@ -40,12 +40,12 @@ export type OAuthScope =
  * @category OAuth
  */
 export const SCOPES: Readonly<Record<OAuthScope, string>> = Object.freeze({
-  'profile:read': 'Access your name, location, and verification status',
-  'profile:email': 'Access your email address',
-  'rating:read': 'View your current rating and rating splits',
-  'rating:history': 'View your complete rating history',
-  'match:submit': 'Submit match results on your behalf',
-  'webhook:subscribe': 'Receive notifications when your rating changes',
+  'user:profile:read': 'Access your name, location, and verification status',
+  'user:profile:email': 'Access your email address',
+  'user:rating:read': 'View your current rating and rating splits',
+  'user:rating:history': 'View your complete rating history',
+  'user:match:submit': 'Submit match results on your behalf',
+  'user:webhook:subscribe': 'Receive notifications when your rating changes',
 });
 
 /**
@@ -53,7 +53,10 @@ export const SCOPES: Readonly<Record<OAuthScope, string>> = Object.freeze({
  *
  * @category OAuth
  */
-export const DEFAULT_SCOPES: readonly OAuthScope[] = Object.freeze(['profile:read', 'rating:read']);
+export const DEFAULT_SCOPES: readonly OAuthScope[] = Object.freeze([
+  'user:profile:read',
+  'user:rating:read',
+]);
 
 // ---------------------------------------------------------------------------
 // OAuth data types
@@ -188,13 +191,13 @@ export function generateState(): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Ensure `profile:read` is in the scope list, prepending if necessary.
+ * Ensure `user:profile:read` is in the scope list, prepending if necessary.
  *
  * @internal
  */
 export function ensureProfileRead(scopes: readonly OAuthScope[]): readonly OAuthScope[] {
-  if (scopes.includes('profile:read')) {
+  if (scopes.includes('user:profile:read')) {
     return scopes;
   }
-  return ['profile:read', ...scopes];
+  return ['user:profile:read', ...scopes];
 }

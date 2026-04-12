@@ -4,6 +4,7 @@
  * @module
  */
 
+import { ValidationError } from '../errors.js';
 import type { HttpTransport, QueryParams } from '../http.js';
 import { Member } from '../models/member.js';
 import { RatingUpdate } from '../models/rating-update.js';
@@ -144,12 +145,48 @@ export class MembersResource {
   }
 
   /**
+   * Fetch up to 100 members by their member IDs in one call.
+   *
+   * Unknown IDs are silently omitted — the returned array may be
+   * shorter than the input. Results are returned in the same order
+   * as the input IDs.
+   *
+   * @param ids - Array of integer member IDs (max 100).
+   * @param options - Optional filters.
+   * @param options.sport - Sport code to scope ratings (e.g. `'pickleball'`).
+   * @returns Array of {@link Member} instances.
+   * @throws {@link ValidationError} If more than 100 IDs are provided.
+   * @category Members
+   *
+   * @example
+   * ```ts
+   * const members = await client.members.getBulk([4873327, 4873328]);
+   * for (const m of members) {
+   *   console.log(m.name, m.ratingFor('pickleball'));
+   * }
+   * ```
+   */
+  async getBulk(ids: number[], options?: { sport?: string }): Promise<Member[]> {
+    if (ids.length > 100) {
+      throw new ValidationError('Maximum 100 member IDs per request');
+    }
+    const query: Record<string, string> = { ids: ids.join(',') };
+    if (options?.sport) query.sport = options.sport;
+    const rows = await this.#http.request<PartnerMemberWire[]>({
+      method: 'GET',
+      path: '/partner/members',
+      query,
+    });
+    return rows.map((row) => new Member(row));
+  }
+
+  /**
    * Poll for rating change notifications.
    *
    * Returns a list of {@link RatingUpdate} objects for every player
    * whose rating has changed since the last poll. Members are
    * considered subscribed when they have an active OAuth connection
-   * with the `webhook:subscribe` scope.
+   * with the `user:webhook:subscribe` scope.
    */
   async ratingUpdates(): Promise<readonly RatingUpdate[]> {
     const data = await this.#http.request<{ updates?: PartnerRatingUpdateWire[] } | unknown>({
