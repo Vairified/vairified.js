@@ -189,8 +189,8 @@ if (result.ok) {
 }
 ```
 
-Set `dryRun: true` on the batch to validate without persisting — your API key must have
-the `key:dry-run` scope.
+Set `dryRun: true` on the batch to validate without persisting. No special scope
+needed — any key with `key:match:submit` can dry-run.
 
 ### Tournament import
 
