@@ -5,6 +5,31 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-04-14
+
+### Changed
+
+- Removed `key:dry-run` scope — `dryRun` is now a request-body-only toggle. Any key with `key:match:submit` can dry-run; no special scope needed.
+
+### Fixed
+
+- Recreational rating abbreviation: unverified players now correctly show `R` instead of `Rv` in partner API responses.
+- Numeric member ID strings in compressed match `teams` arrays are no longer coerced to integers by the backend.
+
+## [0.3.0] - 2026-04-12
+
+### Breaking Changes
+
+- All 6 OAuth scope strings now carry the `user:` prefix (`profile:read` → `user:profile:read`, etc.) to match the backend scope-namespace split.
+
+### Added
+
+- `members.getBulk(ids, options?)` — fetch up to 100 members by ID in one call (`GET /partner/members`).
+- `matches.tournamentImport(body)` — import tournament results with automatic player matching and ghost creation (`POST /partner/tournament-import`).
+- `webhooks.deliveries(options?)` — inspect recent webhook delivery attempts (`GET /partner/webhook-deliveries`).
+- New `WebhooksResource` sub-resource accessible via `client.webhooks`.
+- New models: `TournamentImportResult`, `WebhookDelivery`, `WebhookDeliveriesResult`.
+
 ## [0.2.0] - 2026-04-10
 
 ### Breaking Changes
