@@ -36,10 +36,8 @@ export function memberPayload(overrides: Partial<PartnerMemberWire> = {}): Partn
     country: 'US',
     gender: 'MALE',
     status: {
-      isVairified: true,
       isWheelchair: false,
       isAmbassador: false,
-      isRater: false,
       isConnected: true,
     },
     sport: {
@@ -51,6 +49,10 @@ export function memberPayload(overrides: Partial<PartnerMemberWire> = {}): Partn
           'gender-open': { rating: 3.88, abbr: 'VG' },
           'singles-open': { rating: 3.71, abbr: 'S' },
         },
+        isVairified: true,
+        isRater: false,
+        isVairPro: false,
+        isVairProStatus: null,
       },
     },
     activeLeagues: ['Austin Pickleball Club'],

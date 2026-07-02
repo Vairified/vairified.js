@@ -69,12 +69,13 @@ const member = await client.members.get('vair_mem_xxx');
 console.log(member.name);                      // Full name
 console.log(member.displayName);                // "Mike B."
 console.log(member.ratingFor('pickleball'));    // 3.915
-console.log(member.status.isVairified);         // true
+console.log(member.sport.get('pickleball')?.isVairified);   // true (per-sport)
 
 // Dict-like access to rating splits for a specific sport
 const pb = member.sport.get('pickleball');
 if (pb) {
   console.log(pb.rating, pb.abbr);              // 3.915 VO
+  console.log(pb.isVairified, pb.isVairPro);    // per-sport status flags
   console.log(pb.get('overall-open')?.rating);  // 3.915
   console.log(pb.has('singles-open'));          // true
   for (const [key, split] of pb) {
@@ -410,7 +411,8 @@ member.displayName                // "Mike B."
 member.firstName / lastName
 member.gender                     // 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN' | null
 member.age / city / state / zip / country
-member.status.isVairified         // grouped status flags
+member.status.isWheelchair        // global status flags
+member.status.isAmbassador
 member.status.isConnected
 member.sport                      // MemberSportMap
 member.sports                     // readonly string[] of sport codes
@@ -418,12 +420,19 @@ member.ratingFor('pickleball')    // number | null
 member.split('overall-open')      // RatingSplitWire | null
 ```
 
+VAIRification & VAIR-Pro status are **per-sport** — read them off each
+`member.sport` entry, not `member.status` (see `SportRating` below).
+
 ### `SportRating` (dict-like)
 
 ```ts
 const pb = member.sport.get('pickleball');
 pb?.rating              // Primary rating for this sport
 pb?.abbr                // "VO", "VG", etc.
+pb?.isVairified         // per-sport VAIRified flag (Vairified#783)
+pb?.isRater             // per-sport rater flag
+pb?.isVairPro           // per-sport VAIR-Pro flag
+pb?.isVairProStatus     // 'PENDING' | 'ACTIVE' | null
 pb?.get('overall-open') // Any split key
 pb?.size                // Number of splits
 pb?.has('singles-40+')  // Membership check
@@ -431,6 +440,16 @@ for (const [key, split] of pb ?? []) { /* iterate */ }
 ```
 
 ## Migrating
+
+**From 0.3.x → 0.4.0 (breaking):** VAIRification & VAIR-Pro status are now
+**per-sport** (Vairified#783). `isVairified`, `isRater`, `isVairPro`, and
+`isVairProStatus` moved off the member `status` object onto each per-sport
+entry — read them via `member.sport.get(code)?.isVairified` instead of
+`member.status.isVairified`. The `status` object keeps only the genuinely
+global flags (`isWheelchair`, `isAmbassador`, `isConnected`). This mirrors
+the backend: a player can be VAIRified / a VAIR Pro in one sport but not
+another. Publish only after the backend #788 reaches production — against
+the old prod shape the per-sport flags default to `false`/`null`.
 
 **From 0.2.x → 0.3.0:** All OAuth scope strings gained a `user:` prefix
 (`profile:read` → `user:profile:read`). Update any hardcoded scope arrays.
