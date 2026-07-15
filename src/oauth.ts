@@ -71,6 +71,17 @@ export interface OAuthConfig {
   readonly apiKey: string;
   readonly redirectUri: string;
   readonly baseUrl?: string;
+  /**
+   * Your app's `client_id` — the `PartnerApp.slug` Vairified assigned you
+   * (e.g. `dinkr`). Required by the browser `GET /partner/oauth/authorize`
+   * endpoint to identify your app; without it the authorization page rejects
+   * the request with `invalid_request: client_id is required`.
+   *
+   * Only needed for this pure-frontend URL helper. The recommended flow —
+   * {@link OAuthResource.authorize} on a client — identifies your app by the
+   * API key instead, so it needs no `client_id`.
+   */
+  readonly clientId?: string;
 }
 
 /**
@@ -117,11 +128,18 @@ export function getAuthorizationUrl(
   const baseUrl = (config.baseUrl ?? 'https://api-next.vairified.com/api/v1').replace(/\/+$/, '');
   const scopeList = ensureProfileRead(options.scopes ?? DEFAULT_SCOPES);
 
+  // Scope is space-delimited per RFC 6749 §3.3 — the deployed authorization
+  // server splits on whitespace, not commas.
   const params = new URLSearchParams({
     redirect_uri: config.redirectUri,
-    scope: scopeList.join(','),
+    scope: scopeList.join(' '),
     response_type: 'code',
   });
+  // `client_id` (the PartnerApp slug) identifies the app to the browser
+  // authorize endpoint; the URL is rejected without it.
+  if (config.clientId) {
+    params.set('client_id', config.clientId);
+  }
   if (options.state) {
     params.set('state', options.state);
   }

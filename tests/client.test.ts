@@ -125,6 +125,23 @@ describe('client.members.get', () => {
     expect(member.ratingFor('padel')).toBeNull();
   });
 
+  it('looks the member up by the `memberId` query param (not `id`)', async () => {
+    let captured: URLSearchParams | null = null;
+    server.use(
+      http.get(`${BASE_URL}/partner/member`, ({ request }) => {
+        captured = new URL(request.url).searchParams;
+        return HttpResponse.json(memberPayload());
+      }),
+    );
+
+    const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
+    await client.members.get('vair_mem_xxx');
+
+    // The deployed api-next keys the lookup on `memberId`; sending `id` 404s.
+    expect(captured!.get('memberId')).toBe('vair_mem_xxx');
+    expect(captured!.has('id')).toBe(false);
+  });
+
   it('passes a single sport filter as a string', async () => {
     let capturedSport: string | null = null;
     server.use(

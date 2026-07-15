@@ -69,32 +69,48 @@ describe('getAuthorizationUrl', () => {
     apiKey: API_KEY,
     redirectUri: 'https://app.example.com/callback',
     baseUrl: 'https://api.example.com/api/v1',
+    clientId: 'dinkr',
   };
 
-  it('builds a URL with defaults', () => {
+  it('builds a URL with defaults (space-delimited scope + client_id)', () => {
     const url = getAuthorizationUrl(config);
-    expect(url).toContain('https://api.example.com/api/v1/partner/oauth/authorize?');
-    expect(url).toContain('redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback');
-    expect(url).toContain('scope=user%3Aprofile%3Aread%2Cuser%3Arating%3Aread');
-    expect(url).toContain('response_type=code');
+    const parsed = new URL(url);
+    expect(parsed.pathname).toBe('/api/v1/partner/oauth/authorize');
+    expect(parsed.searchParams.get('redirect_uri')).toBe('https://app.example.com/callback');
+    // RFC 6749 §3.3 — scopes are space-delimited, never comma-joined.
+    expect(parsed.searchParams.get('scope')).toBe('user:profile:read user:rating:read');
+    expect(url).not.toContain('%2C'); // no encoded comma between scopes
+    expect(parsed.searchParams.get('response_type')).toBe('code');
+    // client_id (PartnerApp slug) identifies the app to the GET authorize endpoint.
+    expect(parsed.searchParams.get('client_id')).toBe('dinkr');
   });
 
-  it('auto-prepends user:profile:read to custom scopes', () => {
+  it('omits client_id when not configured', () => {
+    const url = getAuthorizationUrl({
+      apiKey: API_KEY,
+      redirectUri: 'https://app.example.com/callback',
+      baseUrl: 'https://api.example.com/api/v1',
+    });
+    expect(new URL(url).searchParams.has('client_id')).toBe(false);
+  });
+
+  it('auto-prepends user:profile:read to custom scopes (space-delimited)', () => {
     const url = getAuthorizationUrl(config, {
       scopes: ['user:rating:read', 'user:match:submit'],
     });
-    expect(url).toContain('user%3Aprofile%3Aread');
-    expect(url).toContain('user%3Amatch%3Asubmit');
+    expect(new URL(url).searchParams.get('scope')).toBe(
+      'user:profile:read user:rating:read user:match:submit',
+    );
   });
 
   it('includes state when provided', () => {
     const url = getAuthorizationUrl(config, { state: 'csrf-123' });
-    expect(url).toContain('state=csrf-123');
+    expect(new URL(url).searchParams.get('state')).toBe('csrf-123');
   });
 
   it('omits state when absent', () => {
     const url = getAuthorizationUrl(config);
-    expect(url).not.toContain('state=');
+    expect(new URL(url).searchParams.has('state')).toBe(false);
   });
 
   it('strips trailing slashes from baseUrl', () => {
@@ -110,19 +126,27 @@ describe('getAuthorizationUrl', () => {
 
 // ---------------------------------------------------------------------------
 // OAuthResource — HTTP methods
+//
+// These assert the EXACT wire the deployed api-next Partner API expects
+// (snake_case bodies, space-delimited scope, grant_type, snake_case
+// responses). Regressing any of them silently breaks partner integrations
+// (#844), so each test checks the request body/query, not just the mapping.
 // ---------------------------------------------------------------------------
 
 describe('client.oauth', () => {
-  it('authorize()', async () => {
-    let body: unknown = null;
+  it('authorize() sends snake_case redirect_uri + space-delimited scope, reads authorization_url', async () => {
+    let body: Record<string, unknown> = {};
     server.use(
-      http.post(`${BASE_URL}/partner/oauth/authorize`, async ({ request }) => {
-        body = await request.json();
-        return HttpResponse.json({
-          authorizationUrl: 'https://vairified.com/connect/xyz',
-          code: 'auth-code-123',
-        });
-      }),
+      http.post(
+        `${BASE_URL}/partner/oauth/authorize`,
+        async ({ request }: { request: Request }) => {
+          body = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({
+            authorization_url: 'https://vairified.com/connect/xyz',
+            code: 'auth-code-123',
+          });
+        },
+      ),
     );
 
     const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
@@ -135,15 +159,23 @@ describe('client.oauth', () => {
     expect(auth.authorizationUrl).toBe('https://vairified.com/connect/xyz');
     expect(auth.code).toBe('auth-code-123');
     expect(auth.state).toBe('csrf-xyz');
-    expect(body).toMatchObject({ state: 'csrf-xyz' });
-    // user:profile:read auto-prepended
-    expect(JSON.stringify(body)).toContain('user:profile:read');
+    // exact request wire
+    expect(body.redirect_uri).toBe('https://app.example.com/callback');
+    expect(body).not.toHaveProperty('redirectUri');
+    // space-delimited, user:profile:read auto-prepended
+    expect(body.scope).toBe('user:profile:read user:rating:read');
+    expect(body.state).toBe('csrf-xyz');
   });
 
   it('authorize() uses DEFAULT_SCOPES when none are provided', async () => {
+    let body: Record<string, unknown> = {};
     server.use(
-      http.post(`${BASE_URL}/partner/oauth/authorize`, () =>
-        HttpResponse.json({ authorizationUrl: 'https://x.example.com', code: 'c' }),
+      http.post(
+        `${BASE_URL}/partner/oauth/authorize`,
+        async ({ request }: { request: Request }) => {
+          body = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ authorization_url: 'https://x.example.com', code: 'c' });
+        },
       ),
     );
     const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
@@ -151,6 +183,7 @@ describe('client.oauth', () => {
       redirectUri: 'https://app.example.com/callback',
     });
     expect(auth.authorizationUrl).toBe('https://x.example.com');
+    expect(body.scope).toBe('user:profile:read user:rating:read');
   });
 
   it('authorize() rejects invalid scopes', async () => {
@@ -168,70 +201,91 @@ describe('client.oauth', () => {
     }
   });
 
-  it('exchangeToken()', async () => {
+  it('exchangeToken() sends grant_type + snake_case redirect_uri, parses snake response', async () => {
+    let body: Record<string, unknown> = {};
     server.use(
-      http.post(`${BASE_URL}/partner/oauth/token`, () =>
-        HttpResponse.json({
-          accessToken: 'access-xyz',
-          refreshToken: 'refresh-xyz',
-          expiresIn: 3600,
-          scope: 'user:profile:read,user:rating:read',
-          playerId: 'vair_mem_42',
-        }),
-      ),
+      http.post(`${BASE_URL}/partner/oauth/token`, async ({ request }: { request: Request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          access_token: 'access-xyz',
+          token_type: 'Bearer',
+          refresh_token: 'refresh-xyz',
+          expires_in: 3600,
+          scope: 'user:profile:read user:rating:read',
+          player_id: 'vair_mem_42',
+        });
+      }),
     );
     const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
     const tokens = await client.oauth.exchangeToken({
       code: 'code-123',
       redirectUri: 'https://app.example.com/callback',
     });
+    // request wire (RFC 6749 §4.1.3)
+    expect(body.grant_type).toBe('authorization_code');
+    expect(body.code).toBe('code-123');
+    expect(body.redirect_uri).toBe('https://app.example.com/callback');
+    expect(body).not.toHaveProperty('redirectUri');
+    // response mapping (snake -> camel)
     expect(tokens.accessToken).toBe('access-xyz');
     expect(tokens.refreshToken).toBe('refresh-xyz');
     expect(tokens.scope).toEqual(['user:profile:read', 'user:rating:read']);
     expect(tokens.playerId).toBe('vair_mem_42');
   });
 
-  it('exchangeToken() handles empty scope string and null refresh', async () => {
+  it('exchangeToken() handles empty scope + null refresh, and falls back to the deprecated scopes[] array', async () => {
     server.use(
       http.post(`${BASE_URL}/partner/oauth/token`, () =>
         HttpResponse.json({
-          accessToken: 'a',
-          refreshToken: null,
-          expiresIn: 3600,
+          access_token: 'a',
+          refresh_token: null,
+          expires_in: 3600,
           scope: '',
-          playerId: 'p',
+          scopes: ['user:profile:read'], // deprecated array — used only when `scope` is empty
+          player_id: 'p',
         }),
       ),
     );
     const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
     const tokens = await client.oauth.exchangeToken({ code: 'c', redirectUri: 'r' });
-    expect(tokens.scope).toEqual([]);
+    expect(tokens.scope).toEqual(['user:profile:read']);
     expect(tokens.refreshToken).toBeNull();
   });
 
-  it('refresh()', async () => {
+  it('refresh() sends grant_type=refresh_token + snake_case refresh_token', async () => {
+    let body: Record<string, unknown> = {};
     server.use(
-      http.post(`${BASE_URL}/partner/oauth/refresh`, () =>
-        HttpResponse.json({
-          accessToken: 'new-access',
-          refreshToken: 'new-refresh',
-          expiresIn: 3600,
+      http.post(`${BASE_URL}/partner/oauth/refresh`, async ({ request }: { request: Request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_in: 3600,
           scope: 'user:profile:read',
-          playerId: 'vair_mem_42',
-        }),
-      ),
+          player_id: 'vair_mem_42',
+        });
+      }),
     );
     const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
     const tokens = await client.oauth.refresh('old-refresh');
+    expect(body.grant_type).toBe('refresh_token');
+    expect(body.refresh_token).toBe('old-refresh');
+    expect(body).not.toHaveProperty('refreshToken');
     expect(tokens.accessToken).toBe('new-access');
   });
 
-  it('revoke()', async () => {
+  it('revoke() sends snake_case player_id', async () => {
+    let body: Record<string, unknown> = {};
     server.use(
-      http.post(`${BASE_URL}/partner/oauth/revoke`, () => HttpResponse.json({ success: true })),
+      http.post(`${BASE_URL}/partner/oauth/revoke`, async ({ request }: { request: Request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ success: true });
+      }),
     );
     const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
     const result = await client.oauth.revoke('vair_mem_42');
+    expect(body.player_id).toBe('vair_mem_42');
+    expect(body).not.toHaveProperty('playerId');
     expect(result).toEqual({ success: true });
   });
 
