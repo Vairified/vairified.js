@@ -59,7 +59,7 @@ export class MembersResource {
     playerId: string,
     options: { sport?: string | readonly string[] } = {},
   ): Promise<Member> {
-    const query: Record<string, string> = { id: playerId };
+    const query: Record<string, string> = { memberId: playerId };
     if (options.sport !== undefined) {
       query.sport = Array.isArray(options.sport)
         ? (options.sport as readonly string[]).join(',')
