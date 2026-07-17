@@ -358,6 +358,60 @@ export VAIRIFIED_ENV="staging"   # optional; default: production
 const client = new Vairified();   // reads both env vars
 ```
 
+## React Native
+
+The SDK keeps its **zero-dependency** promise on React Native too — it doesn't bundle
+any polyfills. Instead it feature-detects the platform primitives it needs and expects
+your app to provide the two that Hermes lacks.
+
+### Required polyfills
+
+Install them and import each **once, at your app entry** (e.g. the top of `index.js`),
+before any SDK call:
+
+```bash
+npm install react-native-get-random-values react-native-url-polyfill
+```
+
+```ts
+// index.js — must run before `import { Vairified } from 'vairified'`
+import 'react-native-get-random-values'; // Web Crypto for generateState()
+import 'react-native-url-polyfill/auto';  // WHATWG URL / URLSearchParams
+```
+
+- **`react-native-get-random-values`** backs `crypto.getRandomValues`, which
+  `generateState()` uses for CSRF tokens. Without it, `generateState()` throws a
+  descriptive error (not a bare `ReferenceError`); you can also skip it and pass your
+  own high-entropy `state` string to `oauth.authorize()`.
+- **`react-native-url-polyfill`** provides a complete `URL`/`URLSearchParams`. Hermes'
+  built-ins are incomplete, so request-URL and authorization-URL building need this.
+
+### Pass `apiKey` and `env` explicitly
+
+React Native has no `process.env`, so the `VAIRIFIED_API_KEY` / `VAIRIFIED_ENV` fallbacks
+never resolve there (the SDK guards against the missing global rather than crashing).
+Always construct the client explicitly:
+
+```ts
+const client = new Vairified({ apiKey: 'vair_pk_xxx', env: 'production' });
+```
+
+### Token topology — never ship the API key in the app
+
+The secret partner API key (`X-API-Key`) **must never ship in a mobile app binary**.
+Split the OAuth flow across the app and your backend:
+
+1. **App:** open the authorization URL using your public `client_id` (your `PartnerApp`
+   slug) — build it with `getAuthorizationUrl({ redirectUri, clientId })` — and capture
+   the `myapp://callback` deep link to read the `code` (and `state`).
+2. **Your backend:** perform the code exchange there with a `Vairified` client that holds
+   the secret key — `client.oauth.exchangeToken({ code, redirectUri })`, and likewise
+   `refresh()` / `revoke()`. The SDK injects `X-API-Key` on these calls, so they belong
+   on the server, never in the app.
+
+The app sends the captured `code` to your backend over your own authenticated channel;
+the backend returns only the resulting access token (or a session) to the app.
+
 ## Error Handling
 
 The SDK maps HTTP status codes to typed exceptions. All typed exceptions inherit from

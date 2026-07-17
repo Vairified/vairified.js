@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `SportRating.isVairified`, `.isRater`, `.isVairPro`, `.isVairProStatus` (type `VairProStatus = 'PENDING' | 'ACTIVE' | null`), exposed on every `member.sport` entry.
+- **React Native / Hermes hardening** (still zero runtime dependencies). `generateState()` feature-detects `crypto.getRandomValues` and now encodes its base64 in pure JS (no `btoa` dependency); when Web Crypto is absent it throws a descriptive error pointing at `react-native-get-random-values` instead of a bare `ReferenceError`. The `VAIRIFIED_API_KEY` / `VAIRIFIED_ENV` fallbacks read `process.env` defensively, so a missing `process` global no longer risks a crash. New README "React Native" section documents the required polyfills (`react-native-get-random-values`, `react-native-url-polyfill`), passing `apiKey`/`env` explicitly, and keeping the secret `X-API-Key` off the device by running the OAuth code exchange on the partner backend.
 
 ## [0.3.2] - 2026-07-15
 

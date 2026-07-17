@@ -31,6 +31,26 @@ export const ENVIRONMENTS: Readonly<Record<VairifiedEnvironment, string>> = Obje
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 /**
+ * Read an environment variable without assuming `process` exists.
+ *
+ * Node and most bundlers expose `process.env`, but React Native / Hermes
+ * (and some edge runtimes) do not — touching `process.env` there can throw
+ * a `ReferenceError`. This resolves to `undefined` instead of crashing, so
+ * those callers simply pass `apiKey`/`env` explicitly (see the README's
+ * "React Native" section).
+ *
+ * @internal
+ */
+function readEnv(name: string): string | undefined {
+  try {
+    if (typeof process === 'undefined') return undefined;
+    return process.env?.[name];
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Async client for the Vairified Partner API.
  *
  * The client is organized around sub-resources that mirror the REST
@@ -84,7 +104,7 @@ export class Vairified {
   readonly #transport: HttpTransport;
 
   constructor(options: VairifiedOptions = {}) {
-    const apiKey = options.apiKey ?? process.env.VAIRIFIED_API_KEY ?? '';
+    const apiKey = options.apiKey ?? readEnv('VAIRIFIED_API_KEY') ?? '';
     if (apiKey.length === 0) {
       throw new Error('API key required. Pass { apiKey } or set VAIRIFIED_API_KEY.');
     }
@@ -95,7 +115,7 @@ export class Vairified {
       this.env = options.env ?? 'production';
     } else {
       const envName = (options.env ??
-        (process.env.VAIRIFIED_ENV as VairifiedEnvironment | undefined) ??
+        (readEnv('VAIRIFIED_ENV') as VairifiedEnvironment | undefined) ??
         'production') as VairifiedEnvironment;
       if (options.env && !(envName in ENVIRONMENTS)) {
         throw new Error(
