@@ -69,12 +69,13 @@ const member = await client.members.get('vair_mem_xxx');
 console.log(member.name);                      // Full name
 console.log(member.displayName);                // "Mike B."
 console.log(member.ratingFor('pickleball'));    // 3.915
-console.log(member.status.isVairified);         // true
+console.log(member.sport.get('pickleball')?.isVairified);   // true (per-sport)
 
 // Dict-like access to rating splits for a specific sport
 const pb = member.sport.get('pickleball');
 if (pb) {
   console.log(pb.rating, pb.abbr);              // 3.915 VO
+  console.log(pb.isVairified, pb.isVairPro);    // per-sport status flags
   console.log(pb.get('overall-open')?.rating);  // 3.915
   console.log(pb.has('singles-open'));          // true
   for (const [key, split] of pb) {
@@ -357,6 +358,60 @@ export VAIRIFIED_ENV="staging"   # optional; default: production
 const client = new Vairified();   // reads both env vars
 ```
 
+## React Native
+
+The SDK keeps its **zero-dependency** promise on React Native too — it doesn't bundle
+any polyfills. Instead it feature-detects the platform primitives it needs and expects
+your app to provide the two that Hermes lacks.
+
+### Required polyfills
+
+Install them and import each **once, at your app entry** (e.g. the top of `index.js`),
+before any SDK call:
+
+```bash
+npm install react-native-get-random-values react-native-url-polyfill
+```
+
+```ts
+// index.js — must run before `import { Vairified } from 'vairified'`
+import 'react-native-get-random-values'; // Web Crypto for generateState()
+import 'react-native-url-polyfill/auto';  // WHATWG URL / URLSearchParams
+```
+
+- **`react-native-get-random-values`** backs `crypto.getRandomValues`, which
+  `generateState()` uses for CSRF tokens. Without it, `generateState()` throws a
+  descriptive error (not a bare `ReferenceError`); you can also skip it and pass your
+  own high-entropy `state` string to `oauth.authorize()`.
+- **`react-native-url-polyfill`** provides a complete `URL`/`URLSearchParams`. Hermes'
+  built-ins are incomplete, so request-URL and authorization-URL building need this.
+
+### Pass `apiKey` and `env` explicitly
+
+React Native has no `process.env`, so the `VAIRIFIED_API_KEY` / `VAIRIFIED_ENV` fallbacks
+never resolve there (the SDK guards against the missing global rather than crashing).
+Always construct the client explicitly:
+
+```ts
+const client = new Vairified({ apiKey: 'vair_pk_xxx', env: 'production' });
+```
+
+### Token topology — never ship the API key in the app
+
+The secret partner API key (`X-API-Key`) **must never ship in a mobile app binary**.
+Split the OAuth flow across the app and your backend:
+
+1. **App:** open the authorization URL using your public `client_id` (your `PartnerApp`
+   slug) — build it with `getAuthorizationUrl({ redirectUri, clientId })` — and capture
+   the `myapp://callback` deep link to read the `code` (and `state`).
+2. **Your backend:** perform the code exchange there with a `Vairified` client that holds
+   the secret key — `client.oauth.exchangeToken({ code, redirectUri })`, and likewise
+   `refresh()` / `revoke()`. The SDK injects `X-API-Key` on these calls, so they belong
+   on the server, never in the app.
+
+The app sends the captured `code` to your backend over your own authenticated channel;
+the backend returns only the resulting access token (or a session) to the app.
+
 ## Error Handling
 
 The SDK maps HTTP status codes to typed exceptions. All typed exceptions inherit from
@@ -410,7 +465,8 @@ member.displayName                // "Mike B."
 member.firstName / lastName
 member.gender                     // 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN' | null
 member.age / city / state / zip / country
-member.status.isVairified         // grouped status flags
+member.status.isWheelchair        // global status flags
+member.status.isAmbassador
 member.status.isConnected
 member.sport                      // MemberSportMap
 member.sports                     // readonly string[] of sport codes
@@ -418,12 +474,19 @@ member.ratingFor('pickleball')    // number | null
 member.split('overall-open')      // RatingSplitWire | null
 ```
 
+VAIRification & VAIR-Pro status are **per-sport** — read them off each
+`member.sport` entry, not `member.status` (see `SportRating` below).
+
 ### `SportRating` (dict-like)
 
 ```ts
 const pb = member.sport.get('pickleball');
 pb?.rating              // Primary rating for this sport
 pb?.abbr                // "VO", "VG", etc.
+pb?.isVairified         // per-sport VAIRified flag (Vairified#783)
+pb?.isRater             // per-sport rater flag
+pb?.isVairPro           // per-sport VAIR-Pro flag
+pb?.isVairProStatus     // 'PENDING' | 'ACTIVE' | null
 pb?.get('overall-open') // Any split key
 pb?.size                // Number of splits
 pb?.has('singles-40+')  // Membership check
@@ -431,6 +494,16 @@ for (const [key, split] of pb ?? []) { /* iterate */ }
 ```
 
 ## Migrating
+
+**From 0.3.x → 0.4.0 (breaking):** VAIRification & VAIR-Pro status are now
+**per-sport** (Vairified#783). `isVairified`, `isRater`, `isVairPro`, and
+`isVairProStatus` moved off the member `status` object onto each per-sport
+entry — read them via `member.sport.get(code)?.isVairified` instead of
+`member.status.isVairified`. The `status` object keeps only the genuinely
+global flags (`isWheelchair`, `isAmbassador`, `isConnected`). This mirrors
+the backend: a player can be VAIRified / a VAIR Pro in one sport but not
+another. Publish only after the backend #788 reaches production — against
+the old prod shape the per-sport flags default to `false`/`null`.
 
 **From 0.2.x → 0.3.0:** All OAuth scope strings gained a `user:` prefix
 (`profile:read` → `user:profile:read`). Update any hardcoded scope arrays.

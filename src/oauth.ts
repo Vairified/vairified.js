@@ -189,19 +189,58 @@ export function describeScopes(
  * Generate a cryptographically-random CSRF state token suitable for
  * use with {@link OAuthResource.authorize}.
  *
- * Uses the Web Crypto API (available in Node 19+ and all modern
- * browsers). The returned string is URL-safe base64 of 32 random bytes.
+ * Uses the Web Crypto API `crypto.getRandomValues` (built into Node 19+
+ * and all modern browsers). The returned string is URL-safe, unpadded
+ * base64 of 32 random bytes.
  *
+ * On runtimes without Web Crypto — notably **React Native / Hermes** —
+ * this throws a descriptive `Error` (rather than a bare `ReferenceError`)
+ * telling you to install and import `react-native-get-random-values` at
+ * your app entry, or to pass your own high-entropy `state` string. Base64
+ * encoding is done in pure JS, so no `btoa` polyfill is required.
+ *
+ * @throws {Error} when `crypto.getRandomValues` is unavailable.
  * @category OAuth
  */
 export function generateState(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  let binary = '';
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
+  const webCrypto = globalThis.crypto;
+  if (typeof webCrypto?.getRandomValues !== 'function') {
+    throw new Error(
+      'generateState() needs Web Crypto (crypto.getRandomValues), which is unavailable in ' +
+        'this runtime. Node 19+ and browsers have it built in; on React Native / Hermes, ' +
+        "install 'react-native-get-random-values' and import it once at your app entry " +
+        'before using the SDK — or pass your own high-entropy `state` string to ' +
+        'oauth.authorize().',
+    );
   }
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const bytes = new Uint8Array(32);
+  webCrypto.getRandomValues(bytes);
+  return base64UrlNoPad(bytes);
+}
+
+/** URL-safe base64 alphabet (RFC 4648 §5), used by {@link base64UrlNoPad}. */
+const B64URL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+/**
+ * URL-safe, unpadded base64 of a byte array — implemented in pure JS so it
+ * works on runtimes without `btoa` (e.g. React Native / Hermes).
+ *
+ * @internal
+ */
+function base64UrlNoPad(bytes: Uint8Array): string {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i] ?? 0;
+    const b1 = bytes[i + 1] ?? 0;
+    const b2 = bytes[i + 2] ?? 0;
+    const hasB1 = i + 1 < bytes.length;
+    const hasB2 = i + 2 < bytes.length;
+    out += B64URL_ALPHABET[b0 >> 2] ?? '';
+    out += B64URL_ALPHABET[((b0 & 0x03) << 4) | (b1 >> 4)] ?? '';
+    if (hasB1) out += B64URL_ALPHABET[((b1 & 0x0f) << 2) | (b2 >> 6)] ?? '';
+    if (hasB2) out += B64URL_ALPHABET[b2 & 0x3f] ?? '';
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

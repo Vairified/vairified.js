@@ -4,7 +4,7 @@
  * @module
  */
 
-import type { RatingSplitWire, SportRatingWire } from '../types.js';
+import type { RatingSplitWire, SportRatingWire, VairProStatus } from '../types.js';
 
 /**
  * A player's ratings for a single sport.
@@ -35,11 +35,24 @@ export class SportRating {
   /** Category abbreviation for the primary rating (e.g. `'VO'`). */
   readonly abbr: string;
 
+  /** Player is VAIRified in this sport (has a verified, non-recreational rating). */
+  readonly isVairified: boolean;
+  /** Player is an active VAIR Pro (can rate) in this sport. Alias of {@link isVairPro}. */
+  readonly isRater: boolean;
+  /** Player is an active VAIR Pro (can rate) in this sport. */
+  readonly isVairPro: boolean;
+  /** VAIR-Pro lifecycle status in this sport (`'ACTIVE'` / `'PENDING'` / `null`). */
+  readonly isVairProStatus: VairProStatus;
+
   readonly #splits: ReadonlyMap<string, RatingSplitWire>;
 
   constructor(wire: SportRatingWire) {
     this.rating = wire.rating;
     this.abbr = wire.abbr;
+    this.isVairified = wire.isVairified ?? false;
+    this.isRater = wire.isRater ?? false;
+    this.isVairPro = wire.isVairPro ?? false;
+    this.isVairProStatus = wire.isVairProStatus ?? null;
     this.#splits = new Map(Object.entries(wire.ratingSplits ?? {}));
     Object.freeze(this);
   }

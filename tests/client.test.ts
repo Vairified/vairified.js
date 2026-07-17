@@ -119,7 +119,7 @@ describe('client.members.get', () => {
     expect(member.name).toBe('Mike Barker');
     expect(member.displayName).toBe('Mike B.');
     expect(member.gender).toBe('MALE');
-    expect(member.status.isVairified).toBe(true);
+    expect(member.sport.get('pickleball')?.isVairified).toBe(true);
     expect(member.sports).toEqual(['pickleball']);
     expect(member.ratingFor('pickleball')).toBeCloseTo(3.915);
     expect(member.ratingFor('padel')).toBeNull();
@@ -540,7 +540,7 @@ describe('Member model', () => {
     expect(member.memberId).toBe(4873327);
     expect(member.name).toBe('Mike Barker');
     expect(member.gender).toBe('MALE');
-    expect(member.status.isVairified).toBe(true);
+    expect(member.status.isAmbassador).toBe(false);
   });
 
   it('exposes sport ratings through MemberSportMap', () => {
@@ -548,6 +548,9 @@ describe('Member model', () => {
     const pb = member.sport.get('pickleball');
     expect(pb).toBeInstanceOf(SportRating);
     expect(pb?.rating).toBeCloseTo(3.915);
+    expect(pb?.isVairified).toBe(true);
+    expect(pb?.isVairPro).toBe(false);
+    expect(pb?.isVairProStatus).toBeNull();
     expect(pb?.abbr).toBe('VO');
     expect(member.sport.has('pickleball')).toBe(true);
     expect(member.sport.size).toBe(1);

@@ -76,22 +76,40 @@ export interface SportRatingWire {
   readonly rating: number;
   readonly abbr: string;
   readonly ratingSplits: Readonly<Record<string, RatingSplitWire>>;
+  // Per-sport status (Vairified#783). VAIRification and VAIR-Pro certs are
+  // sport-scoped, so these live on each sport rather than the member `status`.
+  // Optional so the SDK stays forward/backward-compatible with API responses
+  // that predate #783; the model defaults them (isVairified/isRater/isVairPro →
+  // false, isVairProStatus → null).
+  readonly isVairified?: boolean;
+  readonly isRater?: boolean;
+  readonly isVairPro?: boolean;
+  readonly isVairProStatus?: VairProStatus;
 }
+
+/**
+ * VAIR-Pro lifecycle status in a sport: `'ACTIVE'` (approved, can rate),
+ * `'PENDING'` (paid, awaiting approval), or `null` (not a VAIR Pro here).
+ *
+ * @category Members
+ */
+export type VairProStatus = 'PENDING' | 'ACTIVE' | null;
 
 // ---------------------------------------------------------------------------
 // Member
 // ---------------------------------------------------------------------------
 
 /**
- * Grouped member status flags.
+ * Grouped member status flags — only the genuinely GLOBAL ones.
+ *
+ * VAIRification and VAIR-Pro status are per-sport (Vairified#783) and live on
+ * each {@link SportRatingWire} entry (`member.sport.get(code)`), not here.
  *
  * @category Members
  */
 export interface MemberStatusWire {
-  readonly isVairified: boolean;
   readonly isWheelchair: boolean;
   readonly isAmbassador: boolean;
-  readonly isRater: boolean;
   readonly isConnected: boolean;
 }
 
