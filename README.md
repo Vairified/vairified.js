@@ -52,7 +52,7 @@ Every operation lives on a sub-resource that mirrors the REST path:
 
 | Sub-resource            | Operations                                                       |
 |-------------------------|------------------------------------------------------------------|
-| `client.members`        | `get`, `getBulk`, `search`, `find`, `ratingUpdates`              |
+| `client.members`        | `get`, `getBulk`, `getByEmail`, `search`, `find`, `ratingUpdates` |
 | `client.matches`        | `submit`, `tournamentImport`, `testWebhook`                      |
 | `client.oauth`          | `authorize`, `exchangeToken`, `refresh`, `revoke`                |
 | `client.webhooks`       | `deliveries`                                                     |
@@ -99,6 +99,34 @@ const pb = await client.members.getBulk([4873327], { sport: 'pickleball' });
 ```
 
 Unknown IDs are silently omitted — the returned array may be shorter than the input.
+
+### Look members up by email
+
+Resolve up to 100 members by their **exact** email address — useful for linking
+your users to their VAIR identity when you hold their email but not their member
+ID, instead of waiting for each player to complete SSO:
+
+```ts
+const result = await client.members.getByEmail(['ada@example.com', 'nobody@example.com']);
+
+for (const match of result.matched) {
+  const member = match.sole; // null when the address is ambiguous
+  if (member) console.log(match.email, '->', member.memberId);
+}
+
+// Read notFound directly — don't diff your input against the results
+console.log('no VAIR account found for:', result.notFound);
+```
+
+Requires the **`key:player:lookup`** scope, granted per partner on approval —
+holding `key:player:search` does not imply it. Ask VAIR to enable it for your app.
+
+Unlike `getBulk`, **nothing is silently dropped**: every address you supply comes
+back in either `matched` or `notFound`. Matching is exact and case-insensitive
+(no partial or fuzzy matching), and `match.members` is an array because an email
+is not a unique key in VAIR — use `.sole` or check `.isAmbiguous` rather than
+assuming a single result. A `notFound` address is not proof the person has no VAIR
+account: unclaimed imported records are excluded from this lookup.
 
 ### Filter ratings to specific sports
 

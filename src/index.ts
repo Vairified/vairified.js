@@ -61,7 +61,9 @@ export {
 export {
   MatchBatchResult,
   Member,
+  MemberEmailMatch,
   MemberSportMap,
+  MembersByEmailResult,
   RatingUpdate,
   SportRating,
   TournamentImportResult,
@@ -102,6 +104,8 @@ export type {
   MatchBatchResultWire,
   MatchInput,
   MemberStatusWire,
+  MembersByEmailResultWire,
+  PartnerMemberEmailMatchWire,
   PartnerMemberWire,
   PartnerRatingUpdateWire,
   PlayerRankOptions,

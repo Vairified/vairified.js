@@ -138,6 +138,32 @@ export interface PartnerMemberWire {
   readonly grantedScopes?: readonly string[];
 }
 
+/**
+ * One resolved address in a {@link MembersByEmailResultWire}.
+ *
+ * `members` is always an array: an email address is not a unique key in
+ * VAIR, so one address can resolve to more than one member.
+ *
+ * @category Members
+ */
+export interface PartnerMemberEmailMatchWire {
+  readonly email: string;
+  readonly members: readonly PartnerMemberWire[];
+}
+
+/**
+ * Raw envelope returned by `GET /partner/members/by-email`.
+ *
+ * Every requested address appears in exactly one of `matched` or
+ * `notFound` — the endpoint never silently drops one.
+ *
+ * @category Members
+ */
+export interface MembersByEmailResultWire {
+  readonly matched: readonly PartnerMemberEmailMatchWire[];
+  readonly notFound: readonly string[];
+}
+
 // ---------------------------------------------------------------------------
 // Rating updates
 // ---------------------------------------------------------------------------
