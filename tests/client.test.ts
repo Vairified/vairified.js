@@ -703,6 +703,74 @@ describe('client.matches.tournamentImport', () => {
     expect(result.errors).toEqual([]);
     expect(capturedBody).toMatchObject({ sport: 'pickleball', tournamentName: 'Spring Classic' });
   });
+
+  it('defaults createdGhostMembers to an empty array when the field is absent', async () => {
+    // An older API build omits the field entirely; consumers should still be able
+    // to iterate without a null check.
+    server.use(
+      http.post(`${BASE_URL}/partner/tournament-import`, () =>
+        HttpResponse.json({
+          success: true,
+          matchesImported: 1,
+          gamesRecorded: 3,
+          ghostPlayersCreated: 0,
+          existingPlayersMatched: 2,
+        }),
+      ),
+    );
+
+    const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
+    const result = await client.matches.tournamentImport({ sport: 'pickleball', matches: [] });
+
+    expect(result.createdGhostMembers).toEqual([]);
+  });
+
+  it('exposes the member id of each ghost the import created, keyed by the supplied ref', async () => {
+    server.use(
+      http.post(`${BASE_URL}/partner/tournament-import`, () =>
+        HttpResponse.json({
+          success: true,
+          matchesImported: 4,
+          gamesRecorded: 12,
+          ghostPlayersCreated: 2,
+          existingPlayersMatched: 6,
+          createdGhostMembers: [
+            { ref: 'player.one@example.com', memberId: 900001 },
+            { ref: '+15551234567', memberId: 900002 },
+          ],
+        }),
+      ),
+    );
+
+    const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
+    const result = await client.matches.tournamentImport({ sport: 'pickleball', matches: [] });
+
+    expect(result.createdGhostMembers).toEqual([
+      { ref: 'player.one@example.com', memberId: 900001 },
+      { ref: '+15551234567', memberId: 900002 },
+    ]);
+  });
+
+  it('freezes createdGhostMembers and its entries, like every other model field', async () => {
+    server.use(
+      http.post(`${BASE_URL}/partner/tournament-import`, () =>
+        HttpResponse.json({
+          success: true,
+          matchesImported: 1,
+          gamesRecorded: 1,
+          ghostPlayersCreated: 1,
+          existingPlayersMatched: 0,
+          createdGhostMembers: [{ ref: 'a@example.com', memberId: 900003 }],
+        }),
+      ),
+    );
+
+    const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
+    const result = await client.matches.tournamentImport({ sport: 'pickleball', matches: [] });
+
+    expect(Object.isFrozen(result.createdGhostMembers)).toBe(true);
+    expect(Object.isFrozen(result.createdGhostMembers[0])).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

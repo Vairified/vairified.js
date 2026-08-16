@@ -5,6 +5,31 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-08-16
+
+### Added
+
+- **`matches.tournamentImport()` now tells you which players it created** ([Vairified#1134]). An import previously reported only a count of ghost players, so a partner could cause 32 accounts to exist and address none of them — and therefore still could not submit scores for a field containing anyone new. The result now carries their member ids:
+
+  ```ts
+  const result = await client.matches.tournamentImport({
+    sport: 'pickleball',
+    tournamentName: 'Spring Classic',
+    ghostMembers: [{ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.com' }],
+    matches: [...],
+  });
+
+  for (const ghost of result.createdGhostMembers) {
+    console.log(ghost.ref, '->', ghost.memberId); // ada@example.com -> 900001
+  }
+  ```
+
+  - `ref` is the email or phone **you** supplied in `ghostMembers[]`, echoed back so results map onto your own records without a second lookup.
+  - **Created only.** Entries matched to a player who already existed are deliberately absent — resolving an existing email to a member requires the `key:player:lookup` scope and `members.getByEmail()`, and this endpoint is not a way around that.
+  - Empty on a dry-run, which creates nothing, and empty against an older API build that does not send the field.
+
+[Vairified#1134]: https://github.com/Vairified/Vairified/issues/1134
+
 ## [0.5.0] - 2026-08-02
 
 ### Added

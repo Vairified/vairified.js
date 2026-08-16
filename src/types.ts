@@ -392,6 +392,11 @@ export interface PlayerRankOptions {
  *
  * @category Matches
  */
+export interface TournamentImportCreatedGhostWire {
+  readonly ref: string;
+  readonly memberId: number;
+}
+
 export interface TournamentImportResultWire {
   readonly success: boolean;
   readonly matchesImported: number;
@@ -401,6 +406,7 @@ export interface TournamentImportResultWire {
   readonly dryRun?: boolean;
   readonly message?: string;
   readonly errors?: readonly string[];
+  readonly createdGhostMembers?: readonly TournamentImportCreatedGhostWire[];
 }
 
 // ---------------------------------------------------------------------------
