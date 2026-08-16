@@ -7,11 +7,18 @@
 import { ValidationError } from '../errors.js';
 import type { HttpTransport, QueryParams } from '../http.js';
 import { Member } from '../models/member.js';
+import { MembersByEmailResult } from '../models/members-by-email-result.js';
 import { RatingUpdate } from '../models/rating-update.js';
-import type { PartnerMemberWire, PartnerRatingUpdateWire, SearchFilters } from '../types.js';
+import type {
+  MembersByEmailResultWire,
+  PartnerMemberWire,
+  PartnerRatingUpdateWire,
+  SearchFilters,
+} from '../types.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
+const MAX_EMAILS_PER_LOOKUP = 100;
 
 /**
  * Member operations — get a single member, auto-paginating search,
@@ -178,6 +185,79 @@ export class MembersResource {
       query,
     });
     return rows.map((row) => new Member(row));
+  }
+
+  /**
+   * Resolve up to 100 members by their **exact** email address.
+   *
+   * Use this to link your users to their VAIR identity when you hold
+   * their email but not their member ID — e.g. resolving a tournament
+   * roster at registration instead of waiting for each player to
+   * complete SSO.
+   *
+   * **Requires the `key:player:lookup` scope**, which is granted per
+   * partner on approval. Holding `key:player:search` does not imply it.
+   *
+   * Matching is exact and case-insensitive; there is deliberately no
+   * partial, prefix or fuzzy matching. Every address you supply comes
+   * back in either `matched` or `notFound`, so read `notFound` directly
+   * instead of diffing your input against the results.
+   *
+   * A `notFound` address is **not** proof the person has no VAIR
+   * account — unclaimed imported records are excluded from this lookup.
+   *
+   * @param emails - Email addresses to resolve (max 100).
+   * @param options - Optional filters.
+   * @param options.sport - Sport code to scope ratings (e.g. `'pickleball'`).
+   * @throws {@link ValidationError} If more than 100 addresses are
+   *   provided, or the list is empty.
+   * @category Members
+   *
+   * @example
+   * ```ts
+   * const result = await client.members.getByEmail([
+   *   'ada@example.com',
+   *   'nobody@example.com',
+   * ]);
+   *
+   * for (const match of result.matched) {
+   *   const member = match.sole; // null when the address is ambiguous
+   *   if (member) console.log(match.email, '->', member.memberId);
+   * }
+   *
+   * console.log('no VAIR account found for:', result.notFound);
+   * ```
+   */
+  async getByEmail(
+    emails: readonly string[],
+    options?: { sport?: string },
+  ): Promise<MembersByEmailResult> {
+    // Validate before the round trip so the caller gets a typed error
+    // rather than a 400 they have to interpret.
+    if (emails.length === 0) {
+      throw new ValidationError('At least one email address is required');
+    }
+    if (emails.length > MAX_EMAILS_PER_LOOKUP) {
+      throw new ValidationError(`Maximum ${MAX_EMAILS_PER_LOOKUP} email addresses per request`);
+    }
+    // A comma inside an entry would split into two addresses server-side
+    // and silently shift every result — reject it rather than send it.
+    const offender = emails.find((e) => e.includes(','));
+    if (offender !== undefined) {
+      throw new ValidationError(`Email address must not contain a comma: ${offender}`);
+    }
+
+    const query: Record<string, string> = { emails: emails.join(',') };
+    if (options?.sport) query.sport = options.sport;
+    const wire = await this.#http.request<MembersByEmailResultWire>({
+      method: 'GET',
+      path: '/partner/members/by-email',
+      query,
+    });
+    return new MembersByEmailResult({
+      matched: wire?.matched ?? [],
+      notFound: wire?.notFound ?? [],
+    });
   }
 
   /**

@@ -5,6 +5,33 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-02
+
+### Added
+
+- **`members.getByEmail()` — resolve members by exact email address** ([Vairified#995]). Link your users to their VAIR identity when you hold their email but not their member ID, instead of waiting for each player to complete SSO:
+
+  ```ts
+  const result = await client.members.getByEmail(['ada@example.com', 'nobody@example.com']);
+
+  for (const match of result.matched) {
+    const member = match.sole; // null when the address is ambiguous
+    if (member) console.log(match.email, '->', member.memberId);
+  }
+  console.log('no VAIR account found for:', result.notFound);
+  ```
+
+  - **Requires the new `key:player:lookup` scope**, granted per partner on approval. Holding `key:player:search` (or `key:read`, or `key:admin`) does **not** imply it — ask VAIR to enable it for your app.
+  - Matching is **exact and case-insensitive**. There is deliberately no partial, prefix or fuzzy matching.
+  - Maximum **100** addresses per call; the SDK rejects an oversized or empty list, and any address containing a comma, before making the request.
+  - **Every address you supply comes back** in either `matched` or `notFound` — read `notFound` directly rather than diffing your input against the results.
+  - `matched[].members` is an **array**: an email is not a unique key in VAIR, so one address can resolve to more than one member. Use `.sole` (returns `null` when ambiguous) or check `.isAmbiguous` rather than assuming `members[0]`.
+  - A `notFound` address is **not** proof the person has no VAIR account — unclaimed imported records are deliberately excluded from this lookup.
+
+- New response models `MembersByEmailResult` and `MemberEmailMatch` (both frozen, like every other model). `MembersByEmailResult.get(email)` looks an address up case-insensitively; `.allResolved` and `.memberCount` are convenience accessors. New wire types `MembersByEmailResultWire` and `PartnerMemberEmailMatchWire`.
+
+[Vairified#995]: https://github.com/Vairified/Vairified/issues/995
+
 ## [0.4.0] - 2026-07-02
 
 ### Breaking Changes
