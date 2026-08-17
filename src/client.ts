@@ -10,6 +10,7 @@ import {
   MatchesResource,
   MembersResource,
   OAuthResource,
+  ReferralsResource,
   WebhooksResource,
 } from './resources/index.js';
 import type { VairifiedEnvironment, VairifiedOptions } from './types.js';
@@ -100,6 +101,11 @@ export class Vairified {
   readonly leaderboard: LeaderboardResource;
   /** Webhook delivery inspection — deliveries. */
   readonly webhooks: WebhooksResource;
+  /**
+   * Read and record ambassador referral credit. Each method needs its own
+   * per-partner permission — see {@link ReferralsResource}.
+   */
+  readonly referrals: ReferralsResource;
 
   readonly #transport: HttpTransport;
 
@@ -140,6 +146,7 @@ export class Vairified {
     this.oauth = new OAuthResource(this.#transport);
     this.leaderboard = new LeaderboardResource(this.#transport);
     this.webhooks = new WebhooksResource(this.#transport);
+    this.referrals = new ReferralsResource(this.#transport);
   }
 
   /**

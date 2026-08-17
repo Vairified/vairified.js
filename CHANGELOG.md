@@ -39,6 +39,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A **date**, not a timestamp — the question it answers is "did this account pre-date my event?", and a timestamp invites tighter heuristics than that rule intends.
   - Present on `members.get()`, `members.getBulk()` and `members.getByEmail()`. **`null` on `members.search()`**, which is discovery — account age is not a property you can browse strangers by.
 
+- **`client.referrals` — a new sub-resource for ambassador referral credit** ([Vairified#1130], [Vairified#1131]). Both halves of reconciling an event's attribution.
+
+  `referrals.get()` reports who currently earns credit, which is what lets you tell "already credited to my own event host" from "credited to a different ambassador":
+
+  ```ts
+  const result = await client.referrals.get([4873327, 4873328]);
+
+  for (const a of result.claimable) console.log(a.memberId, 'has no credit yet');
+  if (result.get(4873327)?.heldBySomeoneOtherThan(myHostId)) {
+    // a person should look before claiming this
+  }
+  ```
+
+  `POST /ambassador/track` could not answer that — it reports that credit exists without saying whose.
+
+  `referrals.attribute()` credits an ambassador for up to 500 players in one authenticated call, replacing a public endpoint capped at five requests a minute:
+
+  ```ts
+  const result = await client.referrals.attribute({
+    referralCode: 'hillhurst-open',
+    registrationPublishedAt: '2026-08-01',
+    memberIds: [4873327, 4873328],
+  });
+
+  console.log(result.attributed, 'newly credited');
+  console.log('need a human:', result.alreadyAttributed);
+  console.log('too old to credit:', result.predatedEvent);
+  ```
+
+  - `registrationPublishedAt` is the date your event's registration page was **first published**. Accounts created before it did not come from the event and are rejected with `account_predates_event`. VAIR applies that rule itself, so every partner is held to the same one — and because VAIR holds no record of your registration pages, the date you send is recorded for audit. Send the real one.
+  - Every member id gets **its own outcome** — `attributed`, `already_attributed`, `account_predates_event` or `not_found`.
+  - **Safe to retry.** Attribution is one-per-player forever, enforced by a database constraint, so a resubmitted player returns `already_attributed` and nothing changes.
+  - Each method needs its own per-partner permission: `key:referral:read` and `key:referral:write`. Neither is implied by a general read, write or admin key.
+
+  New exported models: `MemberAttribution`, `MembersAttributionResult`, `AttributionResult`.
+
+[Vairified#1130]: https://github.com/Vairified/Vairified/issues/1130
+[Vairified#1131]: https://github.com/Vairified/Vairified/issues/1131
 [Vairified#1132]: https://github.com/Vairified/Vairified/issues/1132
 [Vairified#1134]: https://github.com/Vairified/Vairified/issues/1134
 
