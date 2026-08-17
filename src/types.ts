@@ -130,6 +130,7 @@ export interface PartnerMemberWire {
   readonly state?: string;
   readonly zip?: string;
   readonly country?: string;
+  readonly memberSince?: string;
   readonly gender?: Gender;
   readonly status: MemberStatusWire;
   readonly sport?: Readonly<Record<string, SportRatingWire>>;

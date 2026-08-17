@@ -28,6 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Created only.** Entries matched to a player who already existed are deliberately absent — resolving an existing email to a member requires the `key:player:lookup` scope and `members.getByEmail()`, and this endpoint is not a way around that.
   - Empty on a dry-run, which creates nothing, and empty against an older API build that does not send the field.
 
+- **`Member.memberSince` — the date an account was created** ([Vairified#1132]). Apply a new-accounts-only referral rule, crediting an ambassador only for accounts created because of their event:
+
+  ```ts
+  const result = await client.members.getByEmail(['ada@example.com']);
+  const member = result.matched[0]?.sole;
+  console.log(member?.memberSince); // '2026-08-14'
+  ```
+
+  - A **date**, not a timestamp — the question it answers is "did this account pre-date my event?", and a timestamp invites tighter heuristics than that rule intends.
+  - Present on `members.get()`, `members.getBulk()` and `members.getByEmail()`. **`null` on `members.search()`**, which is discovery — account age is not a property you can browse strangers by.
+
+[Vairified#1132]: https://github.com/Vairified/Vairified/issues/1132
 [Vairified#1134]: https://github.com/Vairified/Vairified/issues/1134
 
 ## [0.5.0] - 2026-08-02

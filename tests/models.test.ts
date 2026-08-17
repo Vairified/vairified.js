@@ -31,6 +31,20 @@ describe('SportRating helpers', () => {
   });
 });
 
+describe('Member.memberSince', () => {
+  it('exposes the account-creation date when the endpoint supplies one', () => {
+    const member = new Member({ ...memberPayload(), memberSince: '2026-08-14' });
+    expect(member.memberSince).toBe('2026-08-14');
+  });
+
+  it('is null when absent — search omits it, and older API builds do not send it', () => {
+    // Not a failure state: /partner/search deliberately withholds account age,
+    // so consumers must handle its absence rather than assume a value.
+    const member = new Member(memberPayload());
+    expect(member.memberSince).toBeNull();
+  });
+});
+
 describe('MemberSportMap helpers', () => {
   it('values() and entries() expose every sport', () => {
     const member = new Member(
