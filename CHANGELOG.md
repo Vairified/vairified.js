@@ -5,6 +5,81 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-08-16
+
+### Added
+
+- **`matches.tournamentImport()` now tells you which players it created** ([Vairified#1134]). An import previously reported only a count of ghost players, so a partner could cause 32 accounts to exist and address none of them — and therefore still could not submit scores for a field containing anyone new. The result now carries their member ids:
+
+  ```ts
+  const result = await client.matches.tournamentImport({
+    sport: 'pickleball',
+    tournamentName: 'Spring Classic',
+    ghostMembers: [{ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.com' }],
+    matches: [...],
+  });
+
+  for (const ghost of result.createdGhostMembers) {
+    console.log(ghost.ref, '->', ghost.memberId); // ada@example.com -> 900001
+  }
+  ```
+
+  - `ref` is the email or phone **you** supplied in `ghostMembers[]`, echoed back so results map onto your own records without a second lookup.
+  - **Created only.** Entries matched to a player who already existed are deliberately absent — resolving an existing email to a member requires the `key:player:lookup` scope and `members.getByEmail()`, and this endpoint is not a way around that.
+  - Empty on a dry-run, which creates nothing, and empty against an older API build that does not send the field.
+
+- **`Member.memberSince` — the date an account was created** ([Vairified#1132]). Apply a new-accounts-only referral rule, crediting an ambassador only for accounts created because of their event:
+
+  ```ts
+  const result = await client.members.getByEmail(['ada@example.com']);
+  const member = result.matched[0]?.sole;
+  console.log(member?.memberSince); // '2026-08-14'
+  ```
+
+  - A **date**, not a timestamp — the question it answers is "did this account pre-date my event?", and a timestamp invites tighter heuristics than that rule intends.
+  - Present on `members.get()`, `members.getBulk()` and `members.getByEmail()`. **`null` on `members.search()`**, which is discovery — account age is not a property you can browse strangers by.
+
+- **`client.referrals` — a new sub-resource for ambassador referral credit** ([Vairified#1130], [Vairified#1131]). Both halves of reconciling an event's attribution.
+
+  `referrals.get()` reports who currently earns credit, which is what lets you tell "already credited to my own event host" from "credited to a different ambassador":
+
+  ```ts
+  const result = await client.referrals.get([4873327, 4873328]);
+
+  for (const a of result.claimable) console.log(a.memberId, 'has no credit yet');
+  if (result.get(4873327)?.heldBySomeoneOtherThan(myHostId)) {
+    // a person should look before claiming this
+  }
+  ```
+
+  `POST /ambassador/track` could not answer that — it reports that credit exists without saying whose.
+
+  `referrals.attribute()` credits an ambassador for up to 500 players in one authenticated call, replacing a public endpoint capped at five requests a minute:
+
+  ```ts
+  const result = await client.referrals.attribute({
+    referralCode: 'hillhurst-open',
+    registrationPublishedAt: '2026-08-01',
+    memberIds: [4873327, 4873328],
+  });
+
+  console.log(result.attributed, 'newly credited');
+  console.log('need a human:', result.alreadyAttributed);
+  console.log('too old to credit:', result.predatedEvent);
+  ```
+
+  - `registrationPublishedAt` is the date your event's registration page was **first published**. Accounts created before it did not come from the event and are rejected with `account_predates_event`. VAIR applies that rule itself, so every partner is held to the same one — and because VAIR holds no record of your registration pages, the date you send is recorded for audit. Send the real one.
+  - Every member id gets **its own outcome** — `attributed`, `already_attributed`, `account_predates_event` or `not_found`.
+  - **Safe to retry.** Attribution is one-per-player forever, enforced by a database constraint, so a resubmitted player returns `already_attributed` and nothing changes.
+  - Each method needs its own per-partner permission: `key:referral:read` and `key:referral:write`. Neither is implied by a general read, write or admin key.
+
+  New exported models: `MemberAttribution`, `MembersAttributionResult`, `AttributionResult`.
+
+[Vairified#1130]: https://github.com/Vairified/Vairified/issues/1130
+[Vairified#1131]: https://github.com/Vairified/Vairified/issues/1131
+[Vairified#1132]: https://github.com/Vairified/Vairified/issues/1132
+[Vairified#1134]: https://github.com/Vairified/Vairified/issues/1134
+
 ## [0.5.0] - 2026-08-02
 
 ### Added

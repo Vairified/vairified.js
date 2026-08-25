@@ -93,6 +93,20 @@ export class Member {
   readonly state: string | null;
   readonly zip: string | null;
   readonly country: string | null;
+  /**
+   * The DATE this member's VAIR account was created (`YYYY-MM-DD`, UTC), or
+   * `null` when the endpoint does not supply it.
+   *
+   * Present on `members.get()`, `members.getBulk()` and `members.getByEmail()` —
+   * the calls where you already know which member you asked about. **Never on
+   * `members.search()`**, which is discovery: account age is not something you
+   * can browse strangers by.
+   *
+   * Deliberately a date, not a timestamp. It exists so you can apply a
+   * new-accounts-only referral rule — crediting an ambassador only for accounts
+   * created because of their event.
+   */
+  readonly memberSince: string | null;
   readonly gender: Gender | null;
   readonly status: MemberStatusWire;
   readonly sport: MemberSportMap;
@@ -112,6 +126,7 @@ export class Member {
     this.state = wire.state ?? null;
     this.zip = wire.zip ?? null;
     this.country = wire.country ?? null;
+    this.memberSince = wire.memberSince ?? null;
     this.gender = wire.gender ?? null;
     this.status = Object.freeze({ ...wire.status });
     this.sport = new MemberSportMap(wire.sport);
