@@ -5,6 +5,33 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-08-30
+
+### Added
+
+- **`client.events.list()` — the event catalogue.** Until now the API could tell you about an event you already had an id for, which only helps a partner who had been pushed one. This is the read a directory is built on: what is on, near a point, within a date range.
+
+  ```ts
+  const { events, total } = await client.events.list({
+    type: 'TOURNAMENT',
+    lat: 30.2849,
+    lng: -97.7341,
+    radiusMiles: 25,
+  });
+  ```
+
+  `lat`, `lng` and `radiusMiles` go together — sending one or two of them is rejected by the API rather than ignored, because a half-applied location filter returns events nowhere near the point given while looking like it worked. An event with no coordinates is excluded from a radius search: it cannot be known to be within the radius.
+
+  Dates match on **overlap**, so a multi-day event is returned when the window falls anywhere inside it.
+
+- **Events now carry a location.** `event.location` gives the venue name, address, city, state, zip and coordinates. `location.hasCoordinates` tells you whether it can go on a map.
+
+  ⛔ `latitude` and `longitude` are `null` when an event has never been geocoded — never `0`. Zero is a real coordinate in the Gulf of Guinea, so a `0` fallback would cluster every un-located event on one pin in the ocean, and the map would look like it were working.
+
+  New exports: `PartnerEvent`, `EventLocation`, `EventClub`, `EventsPage`, `EventsResource`, and the matching wire types.
+
+  Requires the `key:event:read` scope, which is TRUSTED-gated — the same scope as the existing per-event reads.
+
 ## [0.6.0] - 2026-08-25
 
 ### Added
