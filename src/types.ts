@@ -419,6 +419,56 @@ export interface TournamentImportResultWire {
  *
  * @category Webhooks
  */
+/**
+ * Where an event is, as the API sends it.
+ *
+ * `latitude`/`longitude` are absent when the event has never been geocoded. They
+ * are never `0` for "unknown" — 0,0 is a real place, and treating it as a
+ * sentinel would put every un-located event in the Gulf of Guinea.
+ *
+ * @category Events
+ */
+export interface PartnerEventLocationWire {
+  readonly venueName?: string;
+  readonly address?: string;
+  readonly city?: string;
+  readonly state?: string;
+  readonly zip?: string;
+  readonly latitude?: number;
+  readonly longitude?: number;
+}
+
+/** An event's organising club, as the API sends it. @category Events */
+export interface PartnerEventClubWire {
+  readonly name: string;
+  readonly city?: string;
+  readonly state?: string;
+}
+
+/** An event, as the API sends it. @category Events */
+export interface PartnerEventWire {
+  readonly eventId: number;
+  readonly name: string;
+  readonly type: string;
+  readonly status: string;
+  readonly sport: string;
+  readonly startDate?: string;
+  readonly endDate?: string;
+  readonly club?: PartnerEventClubWire;
+  readonly location?: PartnerEventLocationWire;
+  readonly hostName?: string;
+  readonly isPrivate: boolean;
+  readonly maxSpots?: number;
+  readonly maxTeams?: number;
+  readonly createdAt: string;
+}
+
+/** A page of events, as the API sends it. @category Events */
+export interface EventsPageWire {
+  readonly events: readonly PartnerEventWire[];
+  readonly total: number;
+}
+
 export interface WebhookDeliveryWire {
   readonly id: string;
   readonly event: string;

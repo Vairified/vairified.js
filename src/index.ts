@@ -59,11 +59,15 @@ export {
 
 // ---- Response models ----
 export {
+  EventClub,
+  EventLocation,
+  EventsPage,
   MatchBatchResult,
   Member,
   MemberEmailMatch,
   MemberSportMap,
   MembersByEmailResult,
+  PartnerEvent,
   RatingUpdate,
   SportRating,
   TournamentImportResult,
@@ -88,6 +92,7 @@ export {
 } from './oauth.js';
 // ---- Resource classes (typically accessed via client.*) ----
 export {
+  EventsResource,
   LeaderboardResource,
   MatchesResource,
   MembersResource,
@@ -97,6 +102,7 @@ export {
 // ---- Types (request shapes + wire types) ----
 export type {
   ApiErrorResponse,
+  EventsPageWire,
   GameInput,
   Gender,
   LeaderboardOptions,
@@ -105,6 +111,9 @@ export type {
   MatchInput,
   MemberStatusWire,
   MembersByEmailResultWire,
+  PartnerEventClubWire,
+  PartnerEventLocationWire,
+  PartnerEventWire,
   PartnerMemberEmailMatchWire,
   PartnerMemberWire,
   PartnerRatingUpdateWire,
