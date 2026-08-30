@@ -4,6 +4,7 @@
  * @module
  */
 
+export { EventsResource } from './events.js';
 export { LeaderboardResource } from './leaderboard.js';
 export { MatchesResource } from './matches.js';
 export { MembersResource } from './members.js';

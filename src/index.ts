@@ -60,11 +60,15 @@ export {
 } from './errors.js';
 // ---- Response models ----
 export {
+  EventClub,
+  EventLocation,
+  EventsPage,
   MatchBatchResult,
   Member,
   MemberEmailMatch,
   MemberSportMap,
   MembersByEmailResult,
+  PartnerEvent,
   RatingUpdate,
   SportRating,
   TournamentImportResult,
@@ -89,6 +93,7 @@ export {
 } from './oauth.js';
 // ---- Resource classes (typically accessed via client.*) ----
 export {
+  EventsResource,
   LeaderboardResource,
   MatchesResource,
   MembersResource,
@@ -104,6 +109,7 @@ export type {
   EventCreatedClubWire,
   EventCreatedEventDataWire,
   EventCreatedEventWire,
+  EventsPageWire,
   GameInput,
   Gender,
   LeaderboardOptions,
@@ -116,6 +122,9 @@ export type {
   MemberStatusWire,
   MembersByEmailResultWire,
   OpenEnum,
+  PartnerEventClubWire,
+  PartnerEventLocationWire,
+  PartnerEventWire,
   PartnerMemberEmailMatchWire,
   PartnerMemberWire,
   PartnerRatingUpdateWire,
