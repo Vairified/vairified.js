@@ -10,6 +10,7 @@ import type {
   PartnerEventLocationWire,
   PartnerEventWire,
   SubmittedEventWire,
+  WithdrawnEventWire,
 } from '../types.js';
 
 /**
@@ -74,6 +75,12 @@ export class EventClub {
  */
 export class PartnerEvent {
   readonly eventId: number;
+  /**
+   * YOUR identifier for this listing, present only on events you submitted.
+   * Absent on everyone else's — their naming of their own events is not yours
+   * to see. This is what makes `list({ mine: true })` reconcilable.
+   */
+  readonly partnerEventId?: string;
   readonly name: string;
   readonly type: string;
   readonly status: string;
@@ -91,6 +98,7 @@ export class PartnerEvent {
   /** @internal */
   constructor(wire: PartnerEventWire) {
     this.eventId = wire.eventId;
+    this.partnerEventId = wire.partnerEventId;
     this.name = wire.name;
     this.type = wire.type;
     this.status = wire.status;
@@ -147,6 +155,32 @@ export class SubmittedEvent {
     this.partnerEventId = wire.partnerEventId;
     this.eventId = wire.eventId;
     this.created = wire.created;
+    Object.freeze(this);
+  }
+}
+
+/**
+ * A listing you withdrew.
+ *
+ * `withdrawn` is `false` when it was already withdrawn. That is a success, not an
+ * error — a reconciling partner retries whole batches and "already gone" is the
+ * expected state rather than a failure.
+ *
+ * @category Events
+ */
+export class WithdrawnEvent {
+  /** The identifier you asked to withdraw, echoed back. */
+  readonly partnerEventId: string;
+  /** Vairified's id for the listing that was withdrawn. */
+  readonly eventId: number | null;
+  /** `true` when this call withdrew it, `false` when it was already withdrawn. */
+  readonly withdrawn: boolean;
+
+  /** @internal */
+  constructor(wire: WithdrawnEventWire) {
+    this.partnerEventId = wire.partnerEventId;
+    this.eventId = wire.eventId;
+    this.withdrawn = wire.withdrawn;
     Object.freeze(this);
   }
 }

@@ -4,8 +4,13 @@
  * @module
  */
 import type { HttpTransport } from '../http.js';
-import { EventsPage, SubmittedEvent } from '../models/event.js';
-import type { EventsPageWire, PartnerEventSubmissionWire, SubmittedEventWire } from '../types.js';
+import { EventsPage, SubmittedEvent, WithdrawnEvent } from '../models/event.js';
+import type {
+  EventsPageWire,
+  PartnerEventSubmissionWire,
+  SubmittedEventWire,
+  WithdrawnEventWire,
+} from '../types.js';
 
 /**
  * The event catalogue.
@@ -39,6 +44,9 @@ export class EventsResource {
    * @param options.lat - Latitude of the search centre.
    * @param options.lng - Longitude of the search centre.
    * @param options.radiusMiles - Search radius in miles.
+   * @param options.mine - Only the events YOU submitted. Use this to reconcile your
+   *   own catalogue: compare what should be listed against what is, and submit or
+   *   withdraw the difference. Withdrawn listings are not returned.
    * @param options.limit - Results per page (1-100, default 20).
    * @param options.offset - Pagination offset.
    * @returns {@link EventsPage} with the events and the total before pagination.
@@ -61,6 +69,7 @@ export class EventsResource {
     lat?: number;
     lng?: number;
     radiusMiles?: number;
+    mine?: boolean;
     limit?: number;
     offset?: number;
   }): Promise<EventsPage> {
@@ -71,6 +80,7 @@ export class EventsResource {
     if (options?.lat != null) query.lat = options.lat;
     if (options?.lng != null) query.lng = options.lng;
     if (options?.radiusMiles != null) query.radiusMiles = options.radiusMiles;
+    if (options?.mine) query.mine = 'true';
     if (options?.limit != null) query.limit = options.limit;
     if (options?.offset != null) query.offset = options.offset;
 
@@ -133,5 +143,40 @@ export class EventsResource {
     });
 
     return new SubmittedEvent(data);
+  }
+
+  /**
+   * Withdraw one of your listings, addressed by the same `partnerEventId` you
+   * submitted it under.
+   *
+   * ⛔ WITHDRAW WHATEVER STOPS BEING REAL. A programme that is cancelled,
+   * finished or unpublished on your own site keeps its directory row until you
+   * say otherwise, and that row keeps sending players to a page that no longer
+   * takes them. That is worse than never having listed it.
+   *
+   * It is REVERSIBLE: submitting the same `partnerEventId` again restores the
+   * listing at the same Vairified id, so links you have already shared keep
+   * working. It is also IDEMPOTENT — withdrawing something already withdrawn
+   * succeeds with `withdrawn: false`, so a batch is safe to retry.
+   *
+   * You can only withdraw your own. An identifier that is not yours is reported
+   * as not found rather than forbidden.
+   *
+   * @param partnerEventId - Your identifier for the listing.
+   * @returns {@link WithdrawnEvent}
+   * @category Events
+   *
+   * @example
+   * ```ts
+   * await client.events.withdraw('autumn-doubles-avon');
+   * ```
+   */
+  async withdraw(partnerEventId: string): Promise<WithdrawnEvent> {
+    const data = await this.#http.request<WithdrawnEventWire>({
+      method: 'DELETE',
+      path: `/partner/events/${encodeURIComponent(partnerEventId)}`,
+    });
+
+    return new WithdrawnEvent(data);
   }
 }

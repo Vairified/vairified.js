@@ -32,6 +32,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Requires the `key:event:submit` scope, granted per partner on approval and **not** implied by `key:write` or `key:admin`, plus an API key linked to your partner application. Adds the frozen model `SubmittedEvent`.
 
+- **`client.events.withdraw()` — take a listing down.** A programme that is cancelled, finished or unpublished on your own site keeps its directory row until you say otherwise, and that row keeps sending players to a page that no longer takes them. That is worse than never having listed it.
+
+  ```ts
+  await client.events.withdraw('autumn-doubles-avon');
+  ```
+
+  Reversible: submitting the same `partnerEventId` again restores the listing at the same Vairified id, so links you have already shared keep working. Idempotent: withdrawing something already withdrawn succeeds with `withdrawn: false`, so a batch is safe to retry. You can only withdraw your own — an identifier that is not yours is reported as not found rather than forbidden, so this cannot be used to discover what anyone else has listed. Adds the frozen model `WithdrawnEvent`.
+
+- **`client.events.list({ mine: true })` — read back your own catalogue.** The other half of reconciling: to withdraw a listing you must first be able to discover it. Compare what should be listed against what is, and submit or withdraw the difference. Withdrawn listings are not returned, because a reconciler is asking what is live. Requires an API key linked to a partner application.
+
 ## [0.7.0] - 2026-08-30
 
 ### Added

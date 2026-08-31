@@ -448,6 +448,8 @@ export interface PartnerEventClubWire {
 /** An event, as the API sends it. @category Events */
 export interface PartnerEventWire {
   readonly eventId: number;
+  /** Your identifier, present only on listings YOU submitted. */
+  readonly partnerEventId?: string;
   readonly name: string;
   readonly type: string;
   readonly status: string;
@@ -570,4 +572,11 @@ export interface SubmittedEventWire {
   readonly partnerEventId: string;
   readonly eventId: number;
   readonly created: boolean;
+}
+
+/** The result of withdrawing a listing, as the API sends it. @category Events */
+export interface WithdrawnEventWire {
+  readonly partnerEventId: string;
+  readonly eventId: number | null;
+  readonly withdrawn: boolean;
 }
