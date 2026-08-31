@@ -75,6 +75,7 @@ export {
   TournamentImportResult,
   WebhookDeliveriesResult,
   WebhookDelivery,
+  WithdrawnEvent,
 } from './models/index.js';
 export type {
   AuthorizationResponse,
@@ -146,6 +147,7 @@ export type {
   WebhookDeliveriesResultWire,
   WebhookDeliveryWire,
   WebhookEventEnvelopeWire,
+  WithdrawnEventWire,
 } from './types.js';
 export type { VerifyWebhookOptions } from './webhooks/verify.js';
 // ---- Webhook verification (no client needed) ----
