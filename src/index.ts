@@ -70,9 +70,11 @@ export {
   PartnerEvent,
   RatingUpdate,
   SportRating,
+  SubmittedEvent,
   TournamentImportResult,
   WebhookDeliveriesResult,
   WebhookDelivery,
+  WithdrawnEvent,
 } from './models/index.js';
 export type {
   AuthorizationResponse,
@@ -113,6 +115,7 @@ export type {
   MembersByEmailResultWire,
   PartnerEventClubWire,
   PartnerEventLocationWire,
+  PartnerEventSubmissionWire,
   PartnerEventWire,
   PartnerMemberEmailMatchWire,
   PartnerMemberWire,
@@ -121,9 +124,11 @@ export type {
   RatingSplitWire,
   SearchFilters,
   SportRatingWire,
+  SubmittedEventWire,
   TournamentImportResultWire,
   VairifiedEnvironment,
   VairifiedOptions,
   WebhookDeliveriesResultWire,
   WebhookDeliveryWire,
+  WithdrawnEventWire,
 } from './types.js';

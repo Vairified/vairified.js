@@ -5,6 +5,48 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-08-30
+
+### Added
+
+- **`client.events.submit()` — put your own events into the Vairified directory.** Vairified shows the event and sends players to your registration page; no registration and no payment happens on Vairified, and no player data comes back to you through this call.
+
+  ```ts
+  const listing = await client.events.submit({
+    partnerEventId: 'autumn-doubles-avon',
+    sportCode: 'pickleball',
+    name: 'Autumn Doubles - Avon',
+    type: 'TOURNAMENT',
+    registrationUrl: 'https://example.com/register/autumn-doubles',
+    location: { city: 'Avon', state: 'IN', latitude: 39.7628, longitude: -86.3997 },
+  });
+  console.log(listing.created ? 'listed' : 'updated');
+  ```
+
+  **Re-submitting is how you edit.** The listing is addressed by `partnerEventId` — your own identifier, not Vairified's — so submitting the same one again updates the listing in place rather than creating a second one. Republish freely whenever a price or a date changes; `created` on the result tells you which happened. Your identifiers are scoped to you: another partner using the same string is a different listing, and neither of you can affect the other's.
+
+  **One submission is one place at one time.** An event running at four venues is four submissions, each with its own `partnerEventId`, its own coordinates and its own `registrationUrl`. One row for four venues puts a single pin on a map for an event happening in four places, and sends every player to the same page.
+
+  `latitude` and `longitude` go together — one without the other is rejected, because a listing with half a coordinate cannot be placed and would never appear in a radius search.
+
+  Only `TOURNAMENT`, `LEAGUE` and `OPEN_PLAY` may be submitted, and every listing is tagged as third-party: a submitted event cannot be made to look like one Vairified runs itself.
+
+  Requires the `key:event:submit` scope, granted per partner on approval and **not** implied by `key:write` or `key:admin`, plus an API key linked to your partner application. Adds the frozen model `SubmittedEvent`.
+
+- **`client.events.withdraw()` — take a listing down.** A programme that is cancelled, finished or unpublished on your own site keeps its directory row until you say otherwise, and that row keeps sending players to a page that no longer takes them. That is worse than never having listed it.
+
+  ```ts
+  await client.events.withdraw('autumn-doubles-avon');
+  ```
+
+  Reversible: submitting the same `partnerEventId` again restores the listing at the same Vairified id, so links you have already shared keep working. Idempotent: withdrawing something already withdrawn succeeds with `withdrawn: false`, so a batch is safe to retry. You can only withdraw your own — an identifier that is not yours is reported as not found rather than forbidden, so this cannot be used to discover what anyone else has listed. Adds the frozen model `WithdrawnEvent`.
+
+- **`sportCode` is required on `events.submit()`, with no default.** A submitted event carries no sport of its own, so before this every listing read as whatever the directory assumed — which for Vairified means pickleball. A padel event surfacing as pickleball is a multisport isolation failure visible to the public. It is required rather than defaulted because a default is how the wrong sport gets in quietly, and an unknown code is rejected rather than falling back.
+
+- **`events.list()` filters are validated rather than ignored.** An unrecognised `type` is now a 400 instead of being silently dropped — a dropped filter returns the whole catalogue and looks exactly like a working request. `radiusMiles` is bounded at **250**, matching the cap the internal events search enforces, and a larger radius is rejected rather than narrowed.
+
+- **`client.events.list({ mine: true })` — read back your own catalogue.** The other half of reconciling: to withdraw a listing you must first be able to discover it. Compare what should be listed against what is, and submit or withdraw the difference. Withdrawn listings are not returned, because a reconciler is asking what is live. Requires an API key linked to a partner application.
+
 ## [0.7.0] - 2026-08-30
 
 ### Added
