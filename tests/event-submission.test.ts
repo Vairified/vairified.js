@@ -20,6 +20,7 @@ const client = () => new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
 
 const SUBMISSION = {
   partnerEventId: 'autumn-doubles-avon',
+  sportCode: 'pickleball',
   name: 'Autumn Doubles - Avon',
   type: 'TOURNAMENT',
   registrationUrl: 'https://example.com/register/autumn-doubles',
@@ -72,6 +73,21 @@ describe('events.submit', () => {
     // Presence before absence: the body must have arrived at all.
     expect(seen.body).toBeTruthy();
     expect(seen.body?.partnerEventId).toBe('autumn-doubles-avon');
+  });
+
+  it('sends the sportCode — required, and never defaulted for the caller', async () => {
+    // A submitted event carries no sport of its own, so an SDK that dropped this
+    // would have every listing read as pickleball whatever the caller passed.
+    const seen = captureBody({
+      partnerEventId: 'autumn-doubles-avon',
+      eventId: 48213,
+      created: true,
+    });
+
+    await client().events.submit({ ...SUBMISSION, sportCode: 'padel' });
+
+    expect(seen.body).toBeTruthy();
+    expect(seen.body?.sportCode).toBe('padel');
   });
 
   it('sends every optional field it was given', async () => {

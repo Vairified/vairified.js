@@ -554,6 +554,13 @@ export interface AttributionResultWire {
  */
 export interface PartnerEventSubmissionWire {
   readonly partnerEventId: string;
+  /**
+   * The sport, by its Vairified code — e.g. `pickleball`, `padel`. REQUIRED,
+   * with deliberately no default: a submitted event carries no sport of its own,
+   * so a default is how the wrong sport gets in quietly and a padel event ends
+   * up in the pickleball directory. An unknown code is rejected.
+   */
+  readonly sportCode: string;
   readonly name: string;
   readonly type: string;
   readonly registrationUrl: string;

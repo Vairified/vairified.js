@@ -43,7 +43,13 @@ export class EventsResource {
    * @param options.dateTo - ISO 8601. Events that have not started after this.
    * @param options.lat - Latitude of the search centre.
    * @param options.lng - Longitude of the search centre.
-   * @param options.radiusMiles - Search radius in miles.
+   * @param options.type - Must be a real container type (`'TOURNAMENT'`,
+   *   `'LEAGUE'`, `'OPEN_PLAY'`, ...). An unrecognised value is rejected by the
+   *   API rather than ignored, because a dropped filter returns the whole
+   *   catalogue and looks exactly like a working request.
+   * @param options.radiusMiles - Search radius in miles, **1 to 250**. Above 250
+   *   is rejected rather than narrowed, matching the cap the internal events
+   *   search enforces.
    * @param options.mine - Only the events YOU submitted. Use this to reconcile your
    *   own catalogue: compare what should be listed against what is, and submit or
    *   withdraw the difference. Withdrawn listings are not returned.
@@ -123,10 +129,15 @@ export class EventsResource {
    * @returns {@link SubmittedEvent} with Vairified's id and whether it was created.
    * @category Events
    *
+   * `sportCode` is REQUIRED and has no default. A submitted event carries no
+   * sport of its own, so defaulting is how a padel event ends up listed as
+   * pickleball; an unknown code is rejected rather than falling back.
+   *
    * @example
    * ```ts
    * const listing = await client.events.submit({
    *   partnerEventId: 'autumn-doubles-avon',
+   *   sportCode: 'pickleball',
    *   name: 'Autumn Doubles - Avon',
    *   type: 'TOURNAMENT',
    *   registrationUrl: 'https://example.com/register/autumn-doubles',

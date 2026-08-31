@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```ts
   const listing = await client.events.submit({
     partnerEventId: 'autumn-doubles-avon',
+    sportCode: 'pickleball',
     name: 'Autumn Doubles - Avon',
     type: 'TOURNAMENT',
     registrationUrl: 'https://example.com/register/autumn-doubles',
@@ -39,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
   Reversible: submitting the same `partnerEventId` again restores the listing at the same Vairified id, so links you have already shared keep working. Idempotent: withdrawing something already withdrawn succeeds with `withdrawn: false`, so a batch is safe to retry. You can only withdraw your own — an identifier that is not yours is reported as not found rather than forbidden, so this cannot be used to discover what anyone else has listed. Adds the frozen model `WithdrawnEvent`.
+
+- **`sportCode` is required on `events.submit()`, with no default.** A submitted event carries no sport of its own, so before this every listing read as whatever the directory assumed — which for Vairified means pickleball. A padel event surfacing as pickleball is a multisport isolation failure visible to the public. It is required rather than defaulted because a default is how the wrong sport gets in quietly, and an unknown code is rejected rather than falling back.
+
+- **`events.list()` filters are validated rather than ignored.** An unrecognised `type` is now a 400 instead of being silently dropped — a dropped filter returns the whole catalogue and looks exactly like a working request. `radiusMiles` is bounded at **250**, matching the cap the internal events search enforces, and a larger radius is rejected rather than narrowed.
 
 - **`client.events.list({ mine: true })` — read back your own catalogue.** The other half of reconciling: to withdraw a listing you must first be able to discover it. Compare what should be listed against what is, and submit or withdraw the difference. Withdrawn listings are not returned, because a reconciler is asking what is live. Requires an API key linked to a partner application.
 
