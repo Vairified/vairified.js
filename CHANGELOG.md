@@ -5,6 +5,33 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-08-30
+
+### Added
+
+- **`client.events.submit()` — put your own events into the Vairified directory.** Vairified shows the event and sends players to your registration page; no registration and no payment happens on Vairified, and no player data comes back to you through this call.
+
+  ```ts
+  const listing = await client.events.submit({
+    partnerEventId: 'autumn-doubles-avon',
+    name: 'Autumn Doubles - Avon',
+    type: 'TOURNAMENT',
+    registrationUrl: 'https://example.com/register/autumn-doubles',
+    location: { city: 'Avon', state: 'IN', latitude: 39.7628, longitude: -86.3997 },
+  });
+  console.log(listing.created ? 'listed' : 'updated');
+  ```
+
+  **Re-submitting is how you edit.** The listing is addressed by `partnerEventId` — your own identifier, not Vairified's — so submitting the same one again updates the listing in place rather than creating a second one. Republish freely whenever a price or a date changes; `created` on the result tells you which happened. Your identifiers are scoped to you: another partner using the same string is a different listing, and neither of you can affect the other's.
+
+  **One submission is one place at one time.** An event running at four venues is four submissions, each with its own `partnerEventId`, its own coordinates and its own `registrationUrl`. One row for four venues puts a single pin on a map for an event happening in four places, and sends every player to the same page.
+
+  `latitude` and `longitude` go together — one without the other is rejected, because a listing with half a coordinate cannot be placed and would never appear in a radius search.
+
+  Only `TOURNAMENT`, `LEAGUE` and `OPEN_PLAY` may be submitted, and every listing is tagged as third-party: a submitted event cannot be made to look like one Vairified runs itself.
+
+  Requires the `key:event:submit` scope, granted per partner on approval and **not** implied by `key:write` or `key:admin`, plus an API key linked to your partner application. Adds the frozen model `SubmittedEvent`.
+
 ## [0.7.0] - 2026-08-30
 
 ### Added

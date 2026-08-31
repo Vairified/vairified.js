@@ -536,3 +536,38 @@ export interface AttributionResultWire {
   readonly attributed: number;
   readonly results?: readonly { readonly memberId: number; readonly outcome: AttributionOutcome }[];
 }
+
+/**
+ * What you send to submit an event for listing.
+ *
+ * ⛔ `partnerEventId` is YOUR identifier, not Vairified's. Submitting the same
+ * one again UPDATES the listing rather than creating a second one, which is how
+ * you edit. It is scoped to you: another partner using the same string is a
+ * different listing.
+ *
+ * ⛔ One submission is one place at one time. An event at four venues is four
+ * submissions, each with its own identifier, coordinates and registration URL.
+ *
+ * @category Events
+ */
+export interface PartnerEventSubmissionWire {
+  readonly partnerEventId: string;
+  readonly name: string;
+  readonly type: string;
+  readonly registrationUrl: string;
+  readonly description?: string;
+  readonly startDate?: string;
+  readonly endDate?: string;
+  readonly hostName?: string;
+  readonly maxSpots?: number;
+  readonly registrationFee?: string;
+  readonly registrationDeadline?: string;
+  readonly location?: PartnerEventLocationWire;
+}
+
+/** The result of submitting an event, as the API sends it. @category Events */
+export interface SubmittedEventWire {
+  readonly partnerEventId: string;
+  readonly eventId: number;
+  readonly created: boolean;
+}
