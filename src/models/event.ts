@@ -9,6 +9,7 @@ import type {
   PartnerEventClubWire,
   PartnerEventLocationWire,
   PartnerEventWire,
+  SubmittedEventWire,
 } from '../types.js';
 
 /**
@@ -120,6 +121,32 @@ export class EventsPage {
   constructor(wire: EventsPageWire) {
     this.events = Object.freeze(wire.events.map((e) => new PartnerEvent(e)));
     this.total = wire.total;
+    Object.freeze(this);
+  }
+}
+
+/**
+ * A listing you submitted.
+ *
+ * `created` distinguishes the two things a submission can do. A partner that
+ * believes it is creating and repeatedly sees `false` is reusing a
+ * `partnerEventId` it did not mean to.
+ *
+ * @category Events
+ */
+export class SubmittedEvent {
+  /** The identifier you supplied, echoed back so a batch can be reconciled. */
+  readonly partnerEventId: string;
+  /** Vairified's integer id for the listing. Stable across re-submissions. */
+  readonly eventId: number;
+  /** `true` when this created the listing, `false` when it updated one. */
+  readonly created: boolean;
+
+  /** @internal */
+  constructor(wire: SubmittedEventWire) {
+    this.partnerEventId = wire.partnerEventId;
+    this.eventId = wire.eventId;
+    this.created = wire.created;
     Object.freeze(this);
   }
 }

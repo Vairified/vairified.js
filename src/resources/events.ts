@@ -4,8 +4,8 @@
  * @module
  */
 import type { HttpTransport } from '../http.js';
-import { EventsPage } from '../models/event.js';
-import type { EventsPageWire } from '../types.js';
+import { EventsPage, SubmittedEvent } from '../models/event.js';
+import type { EventsPageWire, PartnerEventSubmissionWire, SubmittedEventWire } from '../types.js';
 
 /**
  * The event catalogue.
@@ -81,5 +81,57 @@ export class EventsResource {
     });
 
     return new EventsPage(data);
+  }
+
+  /**
+   * Submit one of YOUR events for listing in the Vairified directory.
+   *
+   * Vairified shows the event and sends players to your registration page. No
+   * registration and no payment happens on Vairified, and no player data comes
+   * back to you through this call.
+   *
+   * ⛔ RE-SUBMITTING IS HOW YOU EDIT. The listing is addressed by
+   * `partnerEventId` — your own identifier, not Vairified's — so submitting the
+   * same one again updates the listing in place. Republish freely whenever a
+   * price or a date changes; `created` on the result tells you which happened.
+   * Your identifiers are scoped to you, so another partner using the same string
+   * is a different listing and neither of you can affect the other's.
+   *
+   * ⛔ ONE SUBMISSION IS ONE PLACE AT ONE TIME. An event running at four venues
+   * is four submissions, each with its own `partnerEventId`, its own coordinates
+   * and its own `registrationUrl`. One row for four venues puts a single pin on
+   * a map for an event happening in four places.
+   *
+   * `latitude` and `longitude` go together — one without the other is rejected,
+   * because a listing with half a coordinate cannot be placed and would never
+   * appear in a radius search.
+   *
+   * Requires the `key:event:submit` scope, granted per partner, and an API key
+   * linked to your partner application.
+   *
+   * @param submission - The event to list.
+   * @returns {@link SubmittedEvent} with Vairified's id and whether it was created.
+   * @category Events
+   *
+   * @example
+   * ```ts
+   * const listing = await client.events.submit({
+   *   partnerEventId: 'autumn-doubles-avon',
+   *   name: 'Autumn Doubles - Avon',
+   *   type: 'TOURNAMENT',
+   *   registrationUrl: 'https://example.com/register/autumn-doubles',
+   *   location: { city: 'Avon', state: 'IN', latitude: 39.7628, longitude: -86.3997 },
+   * });
+   * console.log(listing.created ? 'listed' : 'updated');
+   * ```
+   */
+  async submit(submission: PartnerEventSubmissionWire): Promise<SubmittedEvent> {
+    const data = await this.#http.request<SubmittedEventWire>({
+      method: 'POST',
+      path: '/partner/events',
+      body: submission,
+    });
+
+    return new SubmittedEvent(data);
   }
 }
