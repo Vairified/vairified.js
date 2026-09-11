@@ -38,6 +38,7 @@ export function memberPayload(overrides: Partial<PartnerMemberWire> = {}): Partn
     status: {
       isWheelchair: false,
       isAmbassador: false,
+      isVairPlus: false,
       isConnected: true,
     },
     sport: {

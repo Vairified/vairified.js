@@ -541,6 +541,9 @@ describe('Member model', () => {
     expect(member.name).toBe('Mike Barker');
     expect(member.gender).toBe('MALE');
     expect(member.status.isAmbassador).toBe(false);
+    // The flag a partner gating entry on VAIR+ reads. Asserted as an identity, not a
+    // truthiness check: undefined would pass `toBeFalsy` and fail the caller.
+    expect(member.status.isVairPlus).toBe(false);
   });
 
   it('exposes sport ratings through MemberSportMap', () => {
