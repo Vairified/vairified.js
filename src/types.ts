@@ -110,6 +110,19 @@ export type VairProStatus = 'PENDING' | 'ACTIVE' | null;
 export interface MemberStatusWire {
   readonly isWheelchair: boolean;
   readonly isAmbassador: boolean;
+  /**
+   * Whether the player currently holds a **paid VAIR+ membership** — the field to check when a
+   * partner requires VAIR+ for entry.
+   *
+   * `false` covers both "never bought" and "bought once, no longer active", and is also `false`
+   * during the automatic 30-day trial every new VAIR account receives: a trial is not a paid
+   * membership.
+   *
+   * Not to be confused with the per-sport `isVairPro` / `isRater` on each
+   * {@link SportRatingWire} — that is the VAIR **Pro** certified-rater programme, a different
+   * product whose name differs by two characters.
+   */
+  readonly isVairPlus: boolean;
   readonly isConnected: boolean;
 }
 

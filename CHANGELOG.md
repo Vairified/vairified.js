@@ -5,6 +5,27 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-09-11
+
+### Added
+
+- **`member.status.isVairPlus` — whether a member currently holds a paid VAIR+ membership** ([Vairified#1236]). A partner whose events require VAIR+ — NCPA, whose tournaments do — can check entitlement at lookup time instead of keeping its own record of who paid:
+
+  ```ts
+  const member = await client.members.get(4873327);
+
+  if (!member.status.isVairPlus) {
+    // Not entitled: never bought, or the membership has ended.
+  }
+  ```
+
+  - `false` covers both "never bought" and "bought once, no longer active".
+  - It is also **`false` during the automatic 30-day trial** every new VAIR account receives. A trial is not a paid membership, and treating it as one would admit every brand-new signup.
+  - **Not** the per-sport `isVairPro` / `isRater` on each `member.sport` entry — that is the VAIR **Pro** certified-rater programme, a different product whose name differs by two characters.
+  - The field is **required, not optional**, so that `if (!member.status.isVairPlus)` cannot have an absent field read as "not a member". This release therefore requires the Partner API deployment that added it.
+
+[Vairified#1236]: https://github.com/Vairified/Vairified/issues/1236
+
 ## [0.6.0] - 2026-08-25
 
 ### Added
