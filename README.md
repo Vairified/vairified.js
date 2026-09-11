@@ -495,6 +495,7 @@ member.gender                     // 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN' | n
 member.age / city / state / zip / country
 member.status.isWheelchair        // global status flags
 member.status.isAmbassador
+member.status.isVairPlus          // holds a PAID VAIR+ membership
 member.status.isConnected
 member.sport                      // MemberSportMap
 member.sports                     // readonly string[] of sport codes
@@ -528,7 +529,8 @@ for (const [key, split] of pb ?? []) { /* iterate */ }
 `isVairProStatus` moved off the member `status` object onto each per-sport
 entry — read them via `member.sport.get(code)?.isVairified` instead of
 `member.status.isVairified`. The `status` object keeps only the genuinely
-global flags (`isWheelchair`, `isAmbassador`, `isConnected`). This mirrors
+global flags — at that release, `isWheelchair`, `isAmbassador` and
+`isConnected`; `isVairPlus` joined them in 0.7.0. This mirrors
 the backend: a player can be VAIRified / a VAIR Pro in one sport but not
 another. Publish only after the backend #788 reaches production — against
 the old prod shape the per-sport flags default to `false`/`null`.
