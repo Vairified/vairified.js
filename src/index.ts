@@ -123,6 +123,7 @@ export type {
   RatingSplitWire,
   RatingUpdatedEventDataWire,
   RatingUpdatedEventWire,
+  RatingUpdatedSportWire,
   SearchFilters,
   SportRatingWire,
   TournamentImportResultWire,

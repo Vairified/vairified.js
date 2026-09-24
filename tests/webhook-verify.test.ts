@@ -505,8 +505,9 @@ describe('verifyWebhook — a missing secret is a refusal, not a crash', () => {
   it('reports an absent secret as no_secret_configured, never a TypeError', async () => {
     // `process.env.VAIR_WEBHOOK_SECRET!` with the variable unset lands here.
     const err = await expectRejection(
-      // biome-ignore lint/suspicious/noExplicitAny: the whole point is the
-      // untyped value a `!` assertion lets through at a real call site.
+      // The whole point is the untyped value a `!` assertion lets through at a
+      // real call site.
+      // biome-ignore lint/suspicious/noExplicitAny: see above
       verifyWebhook(GOLDEN.body, GOLDEN.header, undefined as any, at()),
       'no_secret_configured',
     );
