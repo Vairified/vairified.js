@@ -9,10 +9,13 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
 import {
+  compareSequence,
   DEFAULT_TOLERANCE_SECONDS,
+  dedupeKey,
   isConnectionRevokedEvent,
   isEventCreatedEvent,
   isMemberStatusEvent,
+  isNewerSequence,
   isRatingUpdatedEvent,
   type VerifiedWebhookEvent,
   verifyWebhook,
@@ -700,5 +703,93 @@ describe('verifyWebhook — decisions that align the two SDKs', () => {
     const event = await verifyWebhook(body, sign(body, GOLDEN.secret, NOW), GOLDEN.secret, at());
     if (!isMemberStatusEvent(event)) throw new Error('narrowing failed');
     expect(event.data.sports?.pickleball?.isVairPro).toBe(true);
+  });
+});
+
+describe('verifyWebhook — what the skeptic pass found', () => {
+  // mutation-checked 2026-09-24: removed `fatal: true` from the TextDecoder ->
+  // 1 red; the invalid byte was silently replaced with U+FFFD and verification
+  // succeeded on text that is not what the signed bytes said.
+  it('refuses a body that is not valid UTF-8, rather than substituting characters', async () => {
+    const good = new TextEncoder().encode(GOLDEN.body);
+    const bad = new Uint8Array(good);
+    bad[bad.length - 3] = 0xff; // inside the JSON, still signable
+    const { createHmac } = await import('node:crypto');
+    const prefix = new TextEncoder().encode(`${NOW}.`);
+    const signed = new Uint8Array(prefix.length + bad.length);
+    signed.set(prefix, 0);
+    signed.set(bad, prefix.length);
+    const header = `t=${NOW},v1=${createHmac('sha256', GOLDEN.secret).update(signed).digest('hex')}`;
+    await expectRejection(verifyWebhook(bad, header, GOLDEN.secret, at()), 'malformed_body');
+  });
+
+  it('hands over an array where the per-sport map belongs, rather than refusing', async () => {
+    // :rotating_light: A DELIBERATE TRADE-OFF, not an oversight.
+    //
+    // Some serialisers render an empty map as an empty array. We hand it over.
+    // The cost is real: a partner who looks up a sport in an array gets
+    // undefined and may conclude the member holds no certification there — a
+    // wrong entitlement answer that looks legitimate. The reason we accept that
+    // cost is the alternative: refusing means the delivery is retried ~13 times
+    // over ~3.4h and then dropped, so the member's status silently stops
+    // updating at that partner, permanently, for every delivery and not just
+    // the odd one. One bad lookup beats a dead feed.
+    //
+    // Partners are told in the type docs to check the value is a map before
+    // indexing it. That is the mitigation, and it is documented rather than
+    // enforced on purpose.
+    const body = GOLDEN.body.replace('"vairProStatus":null', '"sports":[],"vairProStatus":null');
+    const event = await verifyWebhook(body, sign(body, GOLDEN.secret, NOW), GOLDEN.secret, at());
+    if (!isMemberStatusEvent(event)) throw new Error('narrowing failed');
+    expect(Array.isArray(event.data.sports)).toBe(true);
+  });
+
+  it('still hands over an odd nested sport value, matching Python', async () => {
+    // The depth decision: top level only, in both SDKs.
+    const body = GOLDEN.body.replace(
+      '"vairProStatus":null',
+      '"sports":{"pickleball":null},"vairProStatus":null',
+    );
+    const event = await verifyWebhook(body, sign(body, GOLDEN.secret, NOW), GOLDEN.secret, at());
+    if (!isMemberStatusEvent(event)) throw new Error('narrowing failed');
+    expect('pickleball' in (event.data.sports ?? {})).toBe(true);
+  });
+});
+
+describe('sequence helpers — shipped instead of documented', () => {
+  // mutation-checked 2026-09-24: made compareSequence compare the strings
+  // directly instead of via BigInt -> 3 red -- every power-of-ten crossing.
+  // The 40217/40218 pair SURVIVES, because a string compare is accidentally
+  // right when the operands are the same length. That is precisely why the
+  // original defect went unnoticed.
+  it.each([
+    ['9999999', '10000000'],
+    ['999', '1000'],
+    ['9', '10'],
+    ['40217', '40218'],
+  ])('orders %s before %s across a power-of-ten crossing', (older, newer) => {
+    // The whole reason these exist: `'10000000' > '9999999'` is false, so a
+    // partner following the old documented instruction would discard every
+    // later delivery for that member, permanently.
+    expect(isNewerSequence(newer, older)).toBe(true);
+    expect(isNewerSequence(older, newer)).toBe(false);
+    expect(compareSequence(newer, older)).toBeGreaterThan(0);
+  });
+
+  it('treats the first delivery for a member as newer', () => {
+    expect(isNewerSequence('1')).toBe(true);
+    expect(isNewerSequence('1', null)).toBe(true);
+    expect(isNewerSequence('1', '')).toBe(true);
+  });
+
+  it('does not treat an identical sequence as newer', () => {
+    expect(isNewerSequence('40217', '40217')).toBe(false);
+    expect(compareSequence('40217', '40217')).toBe(0);
+  });
+
+  it('dedupes on the signed body id, not the forgeable header', async () => {
+    const event = await verifyWebhook(GOLDEN.body, GOLDEN.header, GOLDEN.secret, at());
+    expect(dedupeKey(event)).toBe('evt_0000000000000000000000000000abcd');
+    expect(dedupeKey(event)).toBe(event.eventId);
   });
 });

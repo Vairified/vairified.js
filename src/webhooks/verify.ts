@@ -162,7 +162,34 @@ function assertEnvelope(value: unknown): asserts value is VerifiedWebhookEvent {
 }
 
 /**
- * Validate the shape of the events this SDK models richly.
+ * Validate the fields a partner gates access on. Nothing else.
+ *
+ * :rotating_light: **This list is the WHOLE validated surface, and its shortness
+ * is the design**:
+ *
+ * - every event: `event`, `eventId`, `timestamp` (checked by the envelope guard)
+ * - `member.status`: `memberId`, `isVairPlus`, `isAmbassador`
+ * - `rating.updated`: `memberId`, `sequence`
+ * - `connection.revoked`, `event.created`: nothing beyond the envelope
+ *
+ * Everything else is handed over exactly as it arrived — including anything
+ * nested, at any depth.
+ *
+ * **Why so little.** Three review rounds found divergences between this SDK and
+ * the Python one, and **every single one was in validation; none was in
+ * signature verification.** Refusing a whole delivery because an informational
+ * field was the wrong type protects nobody and costs everybody: a rejection is
+ * retried ~13 times over ~3.4 h and then **dropped**, so the member's status
+ * silently stops updating at that partner. Handing over an odd field costs one
+ * bad value. The asymmetry decides it.
+ *
+ * **Why these four.** `isVairPlus` and `isAmbassador` are what a partner gates
+ * entry on, and a missing one read as a quiet `false` denies someone who paid.
+ * `memberId` says who the event is about. `sequence` is how a stale rating is
+ * discarded, and getting it wrong is silent and permanent.
+ *
+ * Still never a VALUE — only presence and type. Enum-shaped fields grow on the
+ * API's schedule.
  *
  * :rotating_light: **Checks presence and type. Never a VALUE.** An unfamiliar
  * `vairProStatus`, `reason` or any other enum-shaped string must pass — those
@@ -183,62 +210,21 @@ function assertKnownEventShape(event: VerifiedWebhookEvent): void {
     );
   };
 
+  const data = event.data as Record<string, unknown> | undefined;
+  if (typeof data !== 'object' || data === null) {
+    if (event.event === 'member.status' || event.event === 'rating.updated') bad('data');
+    return;
+  }
+
   if (event.event === 'member.status') {
-    const d = event.data as Record<string, unknown> | undefined;
-    if (typeof d !== 'object' || d === null) bad('data');
-    const data = d as Record<string, unknown>;
     if (typeof data.memberId !== 'number') bad('data.memberId');
     if (typeof data.isVairPlus !== 'boolean') bad('data.isVairPlus');
     if (typeof data.isAmbassador !== 'boolean') bad('data.isAmbassador');
-    if (typeof data.changedAt !== 'string') bad('data.changedAt');
-    if (typeof data.vairifiedRatingStatus !== 'string') bad('data.vairifiedRatingStatus');
-    if (data.vairProStatus !== null && typeof data.vairProStatus !== 'string') {
-      bad('data.vairProStatus');
-    }
-    // `sports` is OPTIONAL and its absence is meaningful — "we were not
-    // permitted to tell you", which is not the same claim as "holds no
-    // certifications". It is never defaulted to `{}` here, and must not be.
-    //
-    // An explicit `null` is accepted and read the same as an omitted key (PO
-    // decision, 2026-09-24): proxies and serialisers do normalise missing keys
-    // into nulls, and both forms mean the same thing. Python accepts it too —
-    // this is the one place the two SDKs previously disagreed.
-    if (data.sports !== undefined && data.sports !== null && typeof data.sports !== 'object') {
-      bad('data.sports');
-    }
-  } else if (event.event === 'connection.revoked') {
-    const d = event.data as Record<string, unknown> | undefined;
-    if (typeof d !== 'object' || d === null) bad('data');
-    const data = d as Record<string, unknown>;
-    if (typeof data.reason !== 'string') bad('data.reason');
-    if (typeof data.revokedAt !== 'string') bad('data.revokedAt');
   } else if (event.event === 'rating.updated') {
-    const d = event.data as Record<string, unknown> | undefined;
-    if (typeof d !== 'object' || d === null) bad('data');
-    const data = d as Record<string, unknown>;
     if (typeof data.memberId !== 'number') bad('data.memberId');
-    if (typeof data.changedAt !== 'string') bad('data.changedAt');
-    // Emitted on EVERY rating.updated delivery, on both variants — unlike
-    // `member.status`, where it is declared and not yet sent. A partner cannot
-    // discard a stale snapshot without it, so a missing one is a real defect.
+    // Without it a partner cannot discard a stale snapshot, and applying an
+    // older one last leaves them holding a rating the member no longer has.
     if (typeof data.sequence !== 'string') bad('data.sequence');
-    // Absent on the notification variant (no `user:rating:read`), so optional —
-    // but present must mean an object, or the caller's sport lookup throws.
-    // Explicit null accepted as absent, same as member.status above.
-    if (data.sports !== undefined && data.sports !== null && typeof data.sports !== 'object') {
-      bad('data.sports');
-    }
-  } else if (event.event === 'event.created') {
-    const d = event.data as Record<string, unknown> | undefined;
-    if (typeof d !== 'object' || d === null) bad('data');
-    const data = d as Record<string, unknown>;
-    // NOT the envelope's string `eventId` — this one is the event's public
-    // number. They shadow each other by name and share nothing else, so a
-    // caller that confuses them gets a silent type error without this check.
-    if (typeof data.eventId !== 'number') bad('data.eventId');
-    if (typeof data.name !== 'string') bad('data.name');
-    if (typeof data.sport !== 'string') bad('data.sport');
-    if (typeof data.createdAt !== 'string') bad('data.createdAt');
   }
 }
 
@@ -416,7 +402,17 @@ export async function verifyWebhook(
   // different member. A verifier that returns unsigned data is not a verifier.
   let parsed: unknown;
   try {
-    parsed = JSON.parse(new TextDecoder().decode(signed.subarray(prefix.length)));
+    // `fatal` and `ignoreBOM` are both load-bearing. The default decoder
+    // strips a UTF-8 BOM and substitutes U+FFFD for invalid bytes, so a
+    // verifier would hand back text that is NOT what the signed bytes said —
+    // characters quietly replaced inside verified data. Python's decode raises
+    // on both, so without this the two SDKs disagree on what is even a valid
+    // body.
+    parsed = JSON.parse(
+      new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
+        signed.subarray(prefix.length),
+      ),
+    );
   } catch {
     throw new WebhookSignatureError('malformed_body', 'The webhook body is not valid JSON');
   }
@@ -514,4 +510,74 @@ export function isRatingUpdatedEvent(event: VerifiedWebhookEvent): event is Rati
  */
 export function isEventCreatedEvent(event: VerifiedWebhookEvent): event is EventCreatedEventWire {
   return event.event === 'event.created';
+}
+
+// ---------------------------------------------------------------------------
+// Helpers — shipped instead of documented
+// ---------------------------------------------------------------------------
+//
+// Everything below replaces an instruction this SDK used to give partners.
+// The reason is one defect: the docs said "keep the highest `sequence` and
+// discard anything lower", and `sequence` is an unpadded decimal string, so the
+// obvious implementation in either language is a string comparison —
+// `'10000000' > '9999999'` is `false`. At every power-of-ten crossing a partner
+// following our own documentation would discard every later delivery for that
+// member, permanently, with no error anywhere. The code was right; the
+// instruction was wrong, and no test of ours could have caught it.
+//
+// So: wherever we would tell a partner to implement something, we provide it.
+
+/**
+ * Compare two `sequence` values as integers.
+ *
+ * @returns negative if `a` is older, `0` if equal, positive if `a` is newer.
+ * @category Webhooks
+ */
+export function compareSequence(a: string, b: string): number {
+  const x = BigInt(a);
+  const y = BigInt(b);
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+
+/**
+ * Whether an incoming `sequence` is newer than the last one you applied **for
+ * that same member**.
+ *
+ * Use it to discard stale deliveries. `rating.updated` carries a full snapshot
+ * rather than a diff, so applying an older one last leaves you holding a rating
+ * the member no longer has.
+ *
+ * ```ts
+ * if (isRatingUpdatedEvent(event)) {
+ *   const last = await store.get(event.data.memberId);
+ *   if (last && !isNewerSequence(event.data.sequence, last)) return; // stale
+ *   await store.put(event.data.memberId, event.data.sequence);
+ * }
+ * ```
+ *
+ * @param incoming - the delivery's `sequence`.
+ * @param lastApplied - the highest you have applied for that member, or
+ *   `null`/`undefined` if you have applied none — in which case this is `true`.
+ * @category Webhooks
+ */
+export function isNewerSequence(incoming: string, lastApplied?: string | null): boolean {
+  if (lastApplied === undefined || lastApplied === null || lastApplied === '') return true;
+  return compareSequence(incoming, lastApplied) > 0;
+}
+
+/**
+ * The key to deduplicate a delivery on.
+ *
+ * Delivery is at-least-once, so a retry can present the same event twice. This
+ * returns the id **from the signed body**.
+ *
+ * :rotating_light: Calling this is the point. The `X-Vairified-Event-Id` header
+ * carries the same value and is **not covered by the signature**, so an attacker
+ * replaying a captured delivery inside the tolerance window can change it freely
+ * and header-based deduplication lets it through every time.
+ *
+ * @category Webhooks
+ */
+export function dedupeKey(event: VerifiedWebhookEvent): string {
+  return event.eventId;
 }

@@ -44,5 +44,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      # conformance/webhook-cases.json is executed here (tests/test_conformance.py)
+      # and by vairified.js over the same byte-identical file, so a behaviour
+      # difference between the two SDKs fails a build rather than waiting for a
+      # person to notice. Parity used to be an assertion; it was wrong twice.
       - name: Test
         run: npm test

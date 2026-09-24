@@ -137,10 +137,13 @@ export type {
 export type { VerifyWebhookOptions } from './webhooks/verify.js';
 // ---- Webhook verification (no client needed) ----
 export {
+  compareSequence,
   DEFAULT_TOLERANCE_SECONDS,
+  dedupeKey,
   isConnectionRevokedEvent,
   isEventCreatedEvent,
   isMemberStatusEvent,
+  isNewerSequence,
   isRatingUpdatedEvent,
   verifyWebhook,
 } from './webhooks/verify.js';

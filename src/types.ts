@@ -532,10 +532,10 @@ export interface MemberStatusEventSportWire {
    * "may rate".** Treat only `true` as permission. A member certified in
    * pickleball is not thereby certified in padel.
    */
-  readonly isVairPro: boolean;
+  readonly isVairPro?: boolean;
   /** Documented alias of {@link isVairPro}, matching `GET /partner/member`. */
-  readonly isRater: boolean;
-  readonly isVairProStatus: OpenEnum<'ACTIVE' | 'PENDING'>;
+  readonly isRater?: boolean;
+  readonly isVairProStatus?: OpenEnum<'ACTIVE' | 'PENDING'>;
 }
 
 /**
@@ -619,6 +619,26 @@ export interface ConnectionRevokedEventWire extends WebhookEventEnvelopeWire {
  * member's rating changed and not *what it changed to* — `sports` is **absent**,
  * not empty, and `ratingDataWithheld` is `true`.
  */
+/**
+ * One sport's rating standing inside a `rating.updated` snapshot.
+ *
+ * :rotating_light: **Deliberately NOT {@link SportRatingWire}.** That type is the
+ * POLLING shape: it declares `rating`, `abbr` and `ratingSplits` required and
+ * closes `isVairProStatus` to two values. Reusing it here would let a partner
+ * write an exhaustive switch the compiler accepts and the API then outgrows, and
+ * would contradict the Python SDK, which types every field optional. Everything
+ * here is open and optional for the same reason the enums are.
+ */
+export interface RatingUpdatedSportWire {
+  readonly rating?: number;
+  readonly abbr?: string;
+  readonly ratingSplits?: Readonly<Record<string, RatingSplitWire>>;
+  readonly isVairified?: boolean;
+  readonly isRater?: boolean;
+  readonly isVairPro?: boolean;
+  readonly isVairProStatus?: OpenEnum<'ACTIVE' | 'PENDING'>;
+}
+
 export interface RatingUpdatedEventDataWire {
   readonly memberId: number;
 
@@ -630,7 +650,7 @@ export interface RatingUpdatedEventDataWire {
    * means "we were not permitted to tell you", which is not the same claim as
    * "no ratings". Check {@link ratingDataWithheld}.
    */
-  readonly sports?: Readonly<Record<string, SportRatingWire>>;
+  readonly sports?: Readonly<Record<string, RatingUpdatedSportWire>> | null;
 
   /** When the rating computation that produced this state completed (ISO 8601). */
   readonly changedAt: string;
@@ -644,8 +664,16 @@ export interface RatingUpdatedEventDataWire {
    * **can arrive out of order** — and applying the older one last leaves you
    * holding a rating the member no longer has.
    *
-   * So: keep the highest `sequence` you have applied **per member**, and discard
-   * any delivery whose `sequence` is lower. Compare it only against other values
+   * :rotating_light: **Compare it as an INTEGER, never as a string.** It is an
+   * unpadded decimal, so a string comparison is lexicographic and
+   * `'10000000' > '9999999'` is `false`. At every power-of-ten crossing a
+   * string-comparing receiver would discard every later delivery for that
+   * member, permanently, and their rating would freeze at the stale value —
+   * which is the exact failure this field exists to prevent. Use
+   * `BigInt(a) > BigInt(b)`.
+   *
+   * So: keep the highest `sequence` you have applied **per member**, compared as
+   * an integer, and discard any delivery whose value is lower. Compare it only against other values
    * **for the same member** — it is drawn from a platform-wide counter, so gaps
    * carry no meaning and values are not comparable across members. Sent as a
    * string because the value exceeds the safe integer range in some languages.
