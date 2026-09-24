@@ -652,3 +652,53 @@ describe('verifyWebhook — all four event types are typed', () => {
     expect(event.data.eventId).toBe(55123);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Decisions taken at CP-2, where the two SDKs had disagreed
+// ---------------------------------------------------------------------------
+
+describe('verifyWebhook — decisions that align the two SDKs', () => {
+  // mutation-checked 2026-09-24: restored the old `data.sports === null` branch
+  // so null was refused -> 1 red, exactly this row.
+  it('accepts an explicit null sports the same as an omitted key', async () => {
+    // Proxies and serialisers normalise missing keys into nulls, and both forms
+    // mean "no per-sport data here". Python accepted this already; this is the
+    // one place the two SDKs disagreed.
+    const body = GOLDEN.body.replace('"vairProStatus":null', '"sports":null,"vairProStatus":null');
+    const event = await verifyWebhook(body, sign(body, GOLDEN.secret, NOW), GOLDEN.secret, at());
+    if (!isMemberStatusEvent(event)) throw new Error('narrowing failed');
+    expect(event.data.sports ?? undefined).toBeUndefined();
+  });
+
+  // mutation-checked 2026-09-24: removed the deepFreeze call -> 1 red, the
+  // mutation below succeeds silently.
+  it('hands back a genuinely immutable event, not just a readonly-typed one', async () => {
+    // `readonly` is erased at runtime. Every other model in this SDK is frozen
+    // and the Python models raise on assignment, so without this the same
+    // promise means two different things in the two languages.
+    const event = await verifyWebhook(GOLDEN.body, GOLDEN.header, GOLDEN.secret, at());
+    if (!isMemberStatusEvent(event)) throw new Error('narrowing failed');
+    expect(Object.isFrozen(event)).toBe(true);
+    expect(Object.isFrozen(event.data)).toBe(true);
+    const before = event.data.isVairPlus;
+    try {
+      (event.data as { isVairPlus: boolean }).isVairPlus = !before;
+    } catch {
+      /* strict mode throws; sloppy mode silently ignores. Either is fine. */
+    }
+    expect(event.data.isVairPlus).toBe(before);
+  });
+
+  it('still hands over a sport block with fields missing, rather than refusing', async () => {
+    // A refusal is retried ~13 times over ~3.4h and then dropped, so the
+    // member's status silently stops updating at that partner. Handing it over
+    // costs them one absent field. Python matches this.
+    const body = GOLDEN.body.replace(
+      '"vairProStatus":null',
+      '"sports":{"pickleball":{"isVairPro":true}},"vairProStatus":"ACTIVE"',
+    );
+    const event = await verifyWebhook(body, sign(body, GOLDEN.secret, NOW), GOLDEN.secret, at());
+    if (!isMemberStatusEvent(event)) throw new Error('narrowing failed');
+    expect(event.data.sports?.pickleball?.isVairPro).toBe(true);
+  });
+});

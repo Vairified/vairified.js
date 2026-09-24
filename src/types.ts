@@ -555,7 +555,7 @@ export interface MemberStatusEventDataWire {
   readonly memberId: number;
   readonly isVairPlus: boolean;
   readonly isAmbassador: boolean;
-  readonly sports?: Record<string, MemberStatusEventSportWire>;
+  readonly sports?: Record<string, MemberStatusEventSportWire> | null;
   /**
    * VAIR Pro standing **collapsed across every sport**: `ACTIVE` if any sport's
    * certification is active, else `PENDING` if any is pending, else `null`.

@@ -198,7 +198,12 @@ function assertKnownEventShape(event: VerifiedWebhookEvent): void {
     // `sports` is OPTIONAL and its absence is meaningful — "we were not
     // permitted to tell you", which is not the same claim as "holds no
     // certifications". It is never defaulted to `{}` here, and must not be.
-    if (data.sports !== undefined && (typeof data.sports !== 'object' || data.sports === null)) {
+    //
+    // An explicit `null` is accepted and read the same as an omitted key (PO
+    // decision, 2026-09-24): proxies and serialisers do normalise missing keys
+    // into nulls, and both forms mean the same thing. Python accepts it too —
+    // this is the one place the two SDKs previously disagreed.
+    if (data.sports !== undefined && data.sports !== null && typeof data.sports !== 'object') {
       bad('data.sports');
     }
   } else if (event.event === 'connection.revoked') {
@@ -219,7 +224,8 @@ function assertKnownEventShape(event: VerifiedWebhookEvent): void {
     if (typeof data.sequence !== 'string') bad('data.sequence');
     // Absent on the notification variant (no `user:rating:read`), so optional —
     // but present must mean an object, or the caller's sport lookup throws.
-    if (data.sports !== undefined && (typeof data.sports !== 'object' || data.sports === null)) {
+    // Explicit null accepted as absent, same as member.status above.
+    if (data.sports !== undefined && data.sports !== null && typeof data.sports !== 'object') {
       bad('data.sports');
     }
   } else if (event.event === 'event.created') {
@@ -417,7 +423,22 @@ export async function verifyWebhook(
 
   assertEnvelope(parsed);
   assertKnownEventShape(parsed);
-  return parsed;
+  // `readonly` is erased at runtime, so without this the event only *looks*
+  // immutable — while every other model in this SDK is genuinely frozen and the
+  // Python models raise on assignment. A partner who mutates the event in one
+  // handler and reads it in another should get the same guarantee in both
+  // languages, not one that disappears when the types do.
+  return deepFreeze(parsed);
+}
+
+/** Freeze an object and everything reachable from it. */
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const key of Object.getOwnPropertyNames(value)) {
+    deepFreeze((value as Record<string, unknown>)[key]);
+  }
+  return value;
 }
 
 // ---------------------------------------------------------------------------
@@ -470,8 +491,12 @@ export function isConnectionRevokedEvent(
  * Narrow a verified event to `rating.updated` — the event that makes up
  * almost all real traffic.
  *
- * `data` is the same shape {@link MembersResource.ratingUpdates} returns when
- * polling, so one handler can serve both paths.
+ * :rotating_light: **`data` is NOT the shape {@link MembersResource.ratingUpdates}
+ * returns when polling.** The webhook has carried a full multi-sport snapshot
+ * since Vairified#899 and the two have not matched since — there is no
+ * `previousRating`, `newRating` or `ratingSplits` on it. Reusing a polling
+ * handler here reads fields that will never be present. See
+ * {@link RatingUpdatedEventDataWire}.
  *
  * @category Webhooks
  */
