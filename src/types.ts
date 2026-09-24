@@ -179,6 +179,63 @@ export interface MembersByEmailResultWire {
 }
 
 // ---------------------------------------------------------------------------
+// Member provisioning
+// ---------------------------------------------------------------------------
+
+/**
+ * One person to provision with `members.provision()`.
+ *
+ * Send `email` or `phone` (or both), plus `firstName` and `lastName`. When
+ * both contacts are sent, `email` alone is used for matching.
+ *
+ * @category Members
+ */
+export interface ProvisionMemberInput {
+  readonly email?: string;
+  readonly phone?: string;
+  readonly firstName: string;
+  readonly lastName: string;
+  /** Birth month and year, `MM/YYYY`. The person must be 13-99 when sent. */
+  readonly birthDate?: string;
+  readonly gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  readonly city?: string;
+  readonly state?: string;
+}
+
+/**
+ * Why the API refused one entry of a provision call.
+ *
+ * @category Members
+ */
+export type ProvisionErrorCode =
+  | 'MISSING_CONTACT'
+  | 'MISSING_NAME'
+  | 'INVALID_EMAIL'
+  | 'INVALID_BIRTH_DATE'
+  | 'AGE_OUT_OF_RANGE';
+
+/**
+ * Raw per-entry result of `POST /partner/members/provision`.
+ *
+ * @category Members
+ */
+export interface ProvisionMemberResultWire {
+  readonly ref: string;
+  readonly status: 'created' | 'exists' | 'invalid';
+  readonly memberId?: number;
+  readonly error?: { readonly code: ProvisionErrorCode; readonly message: string };
+}
+
+/**
+ * Raw envelope returned by `POST /partner/members/provision`.
+ *
+ * @category Members
+ */
+export interface ProvisionMembersResultWire {
+  readonly results: readonly ProvisionMemberResultWire[];
+}
+
+// ---------------------------------------------------------------------------
 // Rating updates
 // ---------------------------------------------------------------------------
 

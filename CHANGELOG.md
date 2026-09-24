@@ -5,6 +5,32 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-24
+
+### Added
+
+- **`members.provision()` gives each person a VAIR identity without creating a VAIR login for them.** For every entry, VAIR either reports that it already holds a record, or creates an unclaimed *ghost* the person later claims, with its history, by signing up on VAIR with the same email. Nobody is emailed.
+
+  ```ts
+  const result = await client.members.provision(
+    [{ email: 'pat@example.com', firstName: 'Pat', lastName: 'Rivera' }],
+    { sport: 'pickleball' },
+  );
+
+  const pat = result.get('pat@example.com');
+  if (pat?.isCreated) saveVairId(pat.memberId); // usable at once in matches.submit()
+  else if (pat?.exists) askThemToSignInWithVair();
+  else showError(pat?.error?.message);
+  ```
+
+  - Requires **both** `key:member:provision` and `key:player:lookup`, on a **TRUSTED** partner app. Neither is implied by `key:read`, `key:write` or `key:admin`. A missing scope or an untrusted app comes back as a `VairifiedError` with `statusCode` 403.
+  - **An `exists` result never carries an id**, whether the record is one member, several, or a ghost another partner created. Link an existing member only through their own sign-in.
+  - Each entry needs `email` or `phone`, plus `firstName` and `lastName`. An optional `birthDate` (`MM/YYYY`) must put the person between 13 and 99. A bad entry comes back as `invalid`, with a `code` and a message you can show as written, and the rest of the batch still goes through.
+  - **Safe to retry.** A repeat call returns `created` with the same `memberId` for a ghost your key created that nobody has claimed yet.
+  - Up to 100 entries per call. The SDK rejects an empty list or more than 100 before sending.
+  - Adds the frozen models `ProvisionMembersResult` (with `.get()`, `.created`, `.existing` and `.invalid`) and `ProvisionResult`, plus the `ProvisionMemberInput` and `ProvisionErrorCode` types.
+  - Requires the Partner API deployment that added `POST /partner/members/provision`.
+
 ## [0.7.0] - 2026-09-11
 
 ### Added
