@@ -24,6 +24,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "typecheck:tests": "tsc --noEmit -p tsconfig.test.json",
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",

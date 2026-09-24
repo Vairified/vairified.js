@@ -89,7 +89,7 @@ describe('HTTP transport', () => {
     );
     const client = new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
     await client.members.get('vair_mem_xxx', { sport: ['pickleball', 'padel'] });
-    expect(capturedUrl?.searchParams.get('sport')).toBe('pickleball,padel');
+    expect((capturedUrl as URL | null)?.searchParams.get('sport')).toBe('pickleball,padel');
   });
 
   it('429 without Retry-After header leaves retryAfter undefined', async () => {
@@ -250,18 +250,18 @@ describe('HTTP transport', () => {
     })) {
       /* drain */
     }
-    expect(params?.get('member')).toBe('Mike');
-    expect(params?.get('city')).toBe('Austin');
-    expect(params?.get('country')).toBe('US');
-    expect(params?.get('zip')).toBe('78701');
-    expect(params?.get('location')).toBe('Central TX');
-    expect(params?.get('gender')).toBe('MALE');
-    expect(params?.get('vairified')).toBe('true');
-    expect(params?.get('wheelchair')).toBe('false');
-    expect(params?.get('rating1')).toBe('3.5');
-    expect(params?.get('rating2')).toBe('4.5');
-    expect(params?.get('sortField')).toBe('rating');
-    expect(params?.get('sortDirection')).toBe('desc');
+    expect((params as URLSearchParams | null)?.get('member')).toBe('Mike');
+    expect((params as URLSearchParams | null)?.get('city')).toBe('Austin');
+    expect((params as URLSearchParams | null)?.get('country')).toBe('US');
+    expect((params as URLSearchParams | null)?.get('zip')).toBe('78701');
+    expect((params as URLSearchParams | null)?.get('location')).toBe('Central TX');
+    expect((params as URLSearchParams | null)?.get('gender')).toBe('MALE');
+    expect((params as URLSearchParams | null)?.get('vairified')).toBe('true');
+    expect((params as URLSearchParams | null)?.get('wheelchair')).toBe('false');
+    expect((params as URLSearchParams | null)?.get('rating1')).toBe('3.5');
+    expect((params as URLSearchParams | null)?.get('rating2')).toBe('4.5');
+    expect((params as URLSearchParams | null)?.get('sortField')).toBe('rating');
+    expect((params as URLSearchParams | null)?.get('sortDirection')).toBe('desc');
   });
 
   it('oauth.authorize tolerates empty response from the server', async () => {

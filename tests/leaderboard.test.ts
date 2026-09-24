@@ -30,9 +30,9 @@ describe('client.leaderboard', () => {
     const data = await client.leaderboard.list();
 
     expect((data as { players: unknown[] }).players).toHaveLength(2);
-    expect(url?.searchParams.get('limit')).toBe('50');
-    expect(url?.searchParams.get('offset')).toBe('0');
-    expect(url?.searchParams.get('verifiedOnly')).toBeNull();
+    expect((url as URL | null)?.searchParams.get('limit')).toBe('50');
+    expect((url as URL | null)?.searchParams.get('offset')).toBe('0');
+    expect((url as URL | null)?.searchParams.get('verifiedOnly')).toBeNull();
   });
 
   it('list() forwards every filter', async () => {
@@ -60,17 +60,17 @@ describe('client.leaderboard', () => {
       search: 'Mike',
     });
 
-    expect(params?.get('category')).toBe('singles');
-    expect(params?.get('ageBracket')).toBe('50+');
-    expect(params?.get('state')).toBe('TX');
-    expect(params?.get('city')).toBe('Austin');
-    expect(params?.get('clubId')).toBe('club_1');
-    expect(params?.get('gender')).toBe('MALE');
-    expect(params?.get('minGames')).toBe('10');
-    expect(params?.get('verifiedOnly')).toBe('true');
-    expect(params?.get('limit')).toBe('20');
-    expect(params?.get('offset')).toBe('40');
-    expect(params?.get('search')).toBe('Mike');
+    expect((params as URLSearchParams | null)?.get('category')).toBe('singles');
+    expect((params as URLSearchParams | null)?.get('ageBracket')).toBe('50+');
+    expect((params as URLSearchParams | null)?.get('state')).toBe('TX');
+    expect((params as URLSearchParams | null)?.get('city')).toBe('Austin');
+    expect((params as URLSearchParams | null)?.get('clubId')).toBe('club_1');
+    expect((params as URLSearchParams | null)?.get('gender')).toBe('MALE');
+    expect((params as URLSearchParams | null)?.get('minGames')).toBe('10');
+    expect((params as URLSearchParams | null)?.get('verifiedOnly')).toBe('true');
+    expect((params as URLSearchParams | null)?.get('limit')).toBe('20');
+    expect((params as URLSearchParams | null)?.get('offset')).toBe('40');
+    expect((params as URLSearchParams | null)?.get('search')).toBe('Mike');
   });
 
   it('list() returns {} on 204', async () => {

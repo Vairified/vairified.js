@@ -1,0 +1,28 @@
+{
+  // Type-checks the TEST suite, which `tsconfig.json` deliberately excludes so
+  // that `tests/` never lands in `dist`.
+  //
+  // Why this file exists: without it NOTHING type-checked `tests/`. `tsc` was
+  // pointed at `src` only, vitest transpiles through esbuild without checking,
+  // and biome does not type-check at all. A test could therefore assert
+  // something type-level that was false and stay green forever — which is
+  // exactly what happened: four "narrowing failed" guards in the webhook suite
+  // read as proof that narrowing worked, while the values they narrowed were
+  // `unknown`. Both CP-1 reviewers found the same defect, independently,
+  // through that hole.
+  //
+  // Run it with `npm run typecheck:tests`. It emits nothing.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "rootDir": ".",
+    // Vitest's globals and its `expect` types are only visible to the test
+    // files, so they are declared here rather than in the shipped config.
+    "types": ["vitest/globals", "node"]
+  },
+  "include": ["src/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

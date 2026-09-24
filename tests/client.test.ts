@@ -830,10 +830,10 @@ describe('client.webhooks.deliveries', () => {
       offset: 20,
     });
 
-    expect(params?.get('event')).toBe('rating.updated');
-    expect(params?.get('status')).toBe('failed');
-    expect(params?.get('limit')).toBe('10');
-    expect(params?.get('offset')).toBe('20');
+    expect((params as URLSearchParams | null)?.get('event')).toBe('rating.updated');
+    expect((params as URLSearchParams | null)?.get('status')).toBe('failed');
+    expect((params as URLSearchParams | null)?.get('limit')).toBe('10');
+    expect((params as URLSearchParams | null)?.get('offset')).toBe('20');
   });
 
   it('returns empty results', async () => {

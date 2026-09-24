@@ -499,3 +499,237 @@ export interface AttributionResultWire {
   readonly attributed: number;
   readonly results?: readonly { readonly memberId: number; readonly outcome: AttributionOutcome }[];
 }
+
+// ---------------------------------------------------------------------------
+// Webhook events — Vairified#1275
+// ---------------------------------------------------------------------------
+
+/**
+ * A value the API documents today, without closing the set.
+ *
+ * `'a' | 'b' | (string & {})` keeps editor autocomplete for the known values
+ * while still accepting one we have not seen. That matters more here than
+ * anywhere else in this SDK: webhook payloads are produced by a service that
+ * ships independently of this package, so a closed union is wrong the moment
+ * the backend adds a value — and it fails at the worst possible time, in a
+ * partner's live handler rather than at their compile step.
+ *
+ * Worked example: `connection.revoked` carried exactly one `reason` for its
+ * whole life, and a second (`player_disconnected`) landed while this very file
+ * was being written. A closed union would have shipped broken.
+ *
+ * @category Webhooks
+ */
+export type OpenEnum<Known extends string> = Known | (string & {});
+
+/** One sport's VAIR Pro standing, as carried by a `member.status` event. */
+export interface MemberStatusEventSportWire {
+  /**
+   * Whether the member is an **active** VAIR Pro (certified rater) **in this
+   * sport** — the field to check before letting someone rate.
+   *
+   * :rotating_light: **`false` means "holds one, awaiting approval", not
+   * "may rate".** Treat only `true` as permission. A member certified in
+   * pickleball is not thereby certified in padel.
+   */
+  readonly isVairPro: boolean;
+  /** Documented alias of {@link isVairPro}, matching `GET /partner/member`. */
+  readonly isRater: boolean;
+  readonly isVairProStatus: OpenEnum<'ACTIVE' | 'PENDING'>;
+}
+
+/**
+ * The `data` block of a `member.status` event.
+ *
+ * :warning: `sports` is **absent, not empty**, for a member who did not grant
+ * `user:rating:read`. Absence means "we were not permitted to tell you", which
+ * is a different claim from "holds no certifications" — check for the key
+ * before concluding anything about a member's rater standing.
+ *
+ * :warning: A sport appears only while the member holds a **current**
+ * certification in it. Expired and revoked certifications are not reported, so
+ * a lapsed rater is indistinguishable here from someone who was never
+ * certified. Do not use this map to answer "have they ever been a rater?".
+ */
+export interface MemberStatusEventDataWire {
+  readonly memberId: number;
+  readonly isVairPlus: boolean;
+  readonly isAmbassador: boolean;
+  readonly sports?: Record<string, MemberStatusEventSportWire>;
+  /**
+   * VAIR Pro standing **collapsed across every sport**: `ACTIVE` if any sport's
+   * certification is active, else `PENDING` if any is pending, else `null`.
+   *
+   * :rotating_light: **This cannot answer "may this person rate my padel
+   * event".** It is `ACTIVE` when the member is certified in *any* sport, so
+   * using it as a per-sport permission grants a pickleball rater authority over
+   * padel. Read {@link MemberStatusEventDataWire.sports} where the sport
+   * matters; this field exists for partners who consumed it before `sports`
+   * did, and for the GoHighLevel contact sync that mirrors it.
+   */
+  readonly vairProStatus: OpenEnum<'ACTIVE' | 'PENDING'> | null;
+  readonly vairifiedRatingStatus: OpenEnum<'NONE' | 'PENDING_PAYMENT' | 'PAID' | 'COMPLETED'>;
+  readonly changedAt: string;
+  /**
+   * Monotonic ordering token, compared only against other values for the SAME
+   * member. **Not currently emitted by the API** — treat an absent value as
+   * "cannot be ordered", never as zero, and order by `changedAt` until it
+   * appears.
+   */
+  readonly sequence?: string;
+}
+
+/** The `data` block of a `connection.revoked` event. */
+export interface ConnectionRevokedEventDataWire {
+  readonly memberId: number | null;
+  readonly reason: OpenEnum<'player_deleted' | 'player_disconnected'>;
+  readonly revokedAt: string;
+}
+
+/** Fields every webhook event carries, whatever its type. */
+export interface WebhookEventEnvelopeWire {
+  readonly event: string;
+  /** Stable event id. **Deduplicate on this** — delivery is at-least-once. */
+  readonly eventId: string;
+  readonly timestamp: string;
+}
+
+export interface MemberStatusEventWire extends WebhookEventEnvelopeWire {
+  readonly event: 'member.status';
+  readonly data: MemberStatusEventDataWire;
+}
+
+export interface ConnectionRevokedEventWire extends WebhookEventEnvelopeWire {
+  readonly event: 'connection.revoked';
+  readonly data: ConnectionRevokedEventDataWire;
+}
+
+/**
+ * The `data` block of a `rating.updated` delivery.
+ *
+ * :rotating_light: **This is NOT {@link PartnerRatingUpdateWire}.** That type is
+ * the shape `GET /partner/rating-updates` returns when you *poll*, and it still
+ * carries the old per-sport diff (`previousRating` / `newRating`). The webhook
+ * has sent a **full multi-sport snapshot** since Vairified#899, and the two have
+ * not matched since. Reusing the poll type here is a mistake this SDK made once
+ * and the reason this docstring exists.
+ *
+ * :warning: **Two variants, distinguished by {@link ratingDataWithheld}.** An app
+ * holding `user:webhook:subscribe` but not `user:rating:read` is told *that* a
+ * member's rating changed and not *what it changed to* — `sports` is **absent**,
+ * not empty, and `ratingDataWithheld` is `true`.
+ */
+export interface RatingUpdatedEventDataWire {
+  readonly memberId: number;
+
+  /**
+   * The member's complete rating standing, keyed by sport code, at the moment
+   * the computation finished — a **snapshot**, not a diff.
+   *
+   * :rotating_light: **Absent when the partner lacks `user:rating:read`.** Absence
+   * means "we were not permitted to tell you", which is not the same claim as
+   * "no ratings". Check {@link ratingDataWithheld}.
+   */
+  readonly sports?: Readonly<Record<string, SportRatingWire>>;
+
+  /** When the rating computation that produced this state completed (ISO 8601). */
+  readonly changedAt: string;
+
+  /**
+   * Monotonic ordering token. **Use it to discard stale deliveries.**
+   *
+   * :rotating_light: Because the payload is a **snapshot** rather than a diff, it
+   * is order-dependent in a way the old diff payload was not. Deliveries run
+   * concurrently with independent retry backoff, so two events for one member
+   * **can arrive out of order** — and applying the older one last leaves you
+   * holding a rating the member no longer has.
+   *
+   * So: keep the highest `sequence` you have applied **per member**, and discard
+   * any delivery whose `sequence` is lower. Compare it only against other values
+   * **for the same member** — it is drawn from a platform-wide counter, so gaps
+   * carry no meaning and values are not comparable across members. Sent as a
+   * string because the value exceeds the safe integer range in some languages.
+   *
+   * Unlike `member.status`, where this field is declared but not yet emitted,
+   * `rating.updated` carries it on **every** delivery, on both variants.
+   */
+  readonly sequence: string;
+
+  /**
+   * Present and `true` only on the notification variant — the partner was not
+   * granted `user:rating:read`, so {@link sports} is absent by design rather
+   * than because nothing changed.
+   */
+  readonly ratingDataWithheld?: boolean;
+}
+
+export interface RatingUpdatedEventWire extends WebhookEventEnvelopeWire {
+  readonly event: 'rating.updated';
+  readonly data: RatingUpdatedEventDataWire;
+}
+
+/** The club an event belongs to, when it has one. */
+export interface EventCreatedClubWire {
+  readonly name: string;
+  readonly city: string | null;
+  readonly state: string | null;
+}
+
+/**
+ * The `data` block of an `event.created` delivery.
+ *
+ * :warning: **`data.eventId` is a NUMBER and is not the envelope's `eventId`.**
+ * The envelope's is the delivery's own string id, used for deduplication; this
+ * one is the event's public number, the id a partner uses to refer to the event
+ * itself. They shadow each other by name and share nothing else.
+ *
+ * This is the only **app-scoped** event — it concerns no particular member, so
+ * it carries no `memberId`.
+ */
+export interface EventCreatedEventDataWire {
+  readonly eventId: number;
+  readonly name: string;
+  readonly type: string;
+  readonly status: string;
+  readonly sport: string;
+  readonly startDate: string | null;
+  readonly endDate: string | null;
+  readonly club: EventCreatedClubWire | null;
+  readonly hostName: string | null;
+  readonly winScore: number | null;
+  readonly winBy: number | null;
+  readonly isPrivate: boolean;
+  readonly maxSpots: number | null;
+  readonly maxTeams: number | null;
+  readonly createdBy: string | null;
+  readonly createdAt: string;
+}
+
+export interface EventCreatedEventWire extends WebhookEventEnvelopeWire {
+  readonly event: 'event.created';
+  readonly data: EventCreatedEventDataWire;
+}
+
+/**
+ * Any event this SDK version does not model richly.
+ *
+ * Verification succeeds and `data` is handed over untouched. This is
+ * deliberate: the signature is checked *before* the body is typed, so an
+ * unrecognised event that reaches your handler is an authenticated one. If
+ * this threw instead, every partner would break the day the API adds an event.
+ */
+export interface UnknownWebhookEventWire extends WebhookEventEnvelopeWire {
+  readonly data: unknown;
+}
+
+/**
+ * A verified webhook event. Narrow on `event` to reach the typed members.
+ *
+ * @category Webhooks
+ */
+export type VerifiedWebhookEvent =
+  | MemberStatusEventWire
+  | ConnectionRevokedEventWire
+  | RatingUpdatedEventWire
+  | EventCreatedEventWire
+  | UnknownWebhookEventWire;
