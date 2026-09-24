@@ -9,9 +9,14 @@ import type { PartnerRatingUpdateWire, RatingSplitWire } from '../types.js';
 /**
  * A single rating change notification.
  *
- * Returned by {@link MembersResource.ratingUpdates} (polling) and
- * delivered via webhook callbacks to partners that have registered a
- * webhook URL and have subscribers.
+ * Returned by {@link MembersResource.ratingUpdates} — the **polling** endpoint,
+ * and only that.
+ *
+ * :rotating_light: **This is NOT the `rating.updated` webhook payload.** It was,
+ * once; the webhook has sent a full multi-sport snapshot since Vairified#899
+ * and the two shapes have not matched since. The webhook's is
+ * {@link RatingUpdatedEventDataWire}, reachable through `verifyWebhook`. This
+ * sentence used to claim otherwise, and a later change believed it.
  *
  * @category Members
  */

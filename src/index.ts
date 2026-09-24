@@ -47,6 +47,7 @@
 
 // ---- Client ----
 export { ENVIRONMENTS, Vairified } from './client.js';
+export type { WebhookRejectionReason } from './errors.js';
 // ---- Error classes ----
 export {
   AuthenticationError,
@@ -55,8 +56,8 @@ export {
   RateLimitError,
   VairifiedError,
   ValidationError,
+  WebhookSignatureError,
 } from './errors.js';
-
 // ---- Response models ----
 export {
   MatchBatchResult,
@@ -95,26 +96,55 @@ export {
   WebhooksResource,
 } from './resources/index.js';
 // ---- Types (request shapes + wire types) ----
+// ---- Webhook event types ----
 export type {
   ApiErrorResponse,
+  ConnectionRevokedEventDataWire,
+  ConnectionRevokedEventWire,
+  EventCreatedClubWire,
+  EventCreatedEventDataWire,
+  EventCreatedEventWire,
   GameInput,
   Gender,
   LeaderboardOptions,
   MatchBatch,
   MatchBatchResultWire,
   MatchInput,
+  MemberStatusEventDataWire,
+  MemberStatusEventSportWire,
+  MemberStatusEventWire,
   MemberStatusWire,
   MembersByEmailResultWire,
+  OpenEnum,
   PartnerMemberEmailMatchWire,
   PartnerMemberWire,
   PartnerRatingUpdateWire,
   PlayerRankOptions,
   RatingSplitWire,
+  RatingUpdatedEventDataWire,
+  RatingUpdatedEventWire,
+  RatingUpdatedSportWire,
   SearchFilters,
   SportRatingWire,
   TournamentImportResultWire,
+  UnknownWebhookEventWire,
   VairifiedEnvironment,
   VairifiedOptions,
+  VerifiedWebhookEvent,
   WebhookDeliveriesResultWire,
   WebhookDeliveryWire,
+  WebhookEventEnvelopeWire,
 } from './types.js';
+export type { VerifyWebhookOptions } from './webhooks/verify.js';
+// ---- Webhook verification (no client needed) ----
+export {
+  compareSequence,
+  DEFAULT_TOLERANCE_SECONDS,
+  dedupeKey,
+  isConnectionRevokedEvent,
+  isEventCreatedEvent,
+  isMemberStatusEvent,
+  isNewerSequence,
+  isRatingUpdatedEvent,
+  verifyWebhook,
+} from './webhooks/verify.js';

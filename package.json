@@ -1,6 +1,6 @@
 {
   "name": "vairified",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Official TypeScript/JavaScript SDK for the Vairified Partner API",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -24,6 +24,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "typecheck:tests": "tsc --noEmit -p tsconfig.test.json",
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",

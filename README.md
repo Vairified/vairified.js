@@ -255,6 +255,148 @@ const result = await client.matches.tournamentImport({
 console.log(`Imported ${result.matchesImported} matches, ${result.ghostPlayersCreated} ghosts`);
 ```
 
+## Receiving Webhooks
+
+`verifyWebhook()` checks a delivery's signature and hands it back typed. It takes no client
+and no API key — a webhook receiver is an inbound HTTP handler, and often never calls the
+Partner API at all.
+
+**Verify on your server, never in a browser or a mobile app.** The signing secret is what
+proves a delivery came from us; anything that ships to a user's device can be read out of it.
+
+```ts
+import { verifyWebhook, isMemberStatusEvent, WebhookSignatureError } from 'vairified';
+
+const event = await verifyWebhook(
+  rawBody,                              // the exact bytes — see below
+  request.headers['x-vairified-signature'],
+  process.env.VAIR_WEBHOOK_SECRET,
+);
+
+if (isMemberStatusEvent(event)) {
+  await entitlements.set(event.data.memberId, {
+    vairPlus: event.data.isVairPlus,
+    ambassador: event.data.isAmbassador,
+  });
+}
+```
+
+It is `async` — **`await` it.** Verification uses Web Crypto, which has no synchronous HMAC.
+The function never returns a boolean, precisely so that a forgotten `await` cannot be read as
+"the signature was fine".
+
+### Capture the raw body
+
+The signature covers **the bytes we sent**. A body that has been parsed and re-serialised is
+not those bytes — key order, whitespace and number formatting all move — so every signature
+fails. In Express, that means reaching for `express.raw()` on the webhook route specifically,
+even when the rest of the app uses `express.json()`:
+
+```ts
+import express from 'express';
+import { verifyWebhook, WebhookSignatureError, dedupeKey } from 'vairified';
+
+const app = express();
+
+app.post('/webhooks/vairified', express.raw({ type: 'application/json' }), async (req, res) => {
+  let event;
+  try {
+    event = await verifyWebhook(req.body, req.get('X-Vairified-Signature'), [
+      process.env.VAIR_WEBHOOK_SECRET,
+      process.env.VAIR_WEBHOOK_SECRET_PREVIOUS,   // see "Rotating the secret"
+    ]);
+  } catch (err) {
+    if (err instanceof WebhookSignatureError) return res.sendStatus(400);
+    throw err;
+  }
+
+  // Respond first, work afterwards — a slow handler is retried as a failure.
+  res.sendStatus(200);
+  await queue.add(dedupeKey(event), event);
+});
+
+app.use(express.json());   // everything else
+```
+
+In a Fetch-based runtime (Workers, Deno, Bun, Next.js route handlers) `await request.text()`
+already gives you the raw body; pass it straight in. `rawBody` accepts a `string` or a
+`Uint8Array`.
+
+### Handling what arrives
+
+```ts
+const event = await verifyWebhook(rawBody, signatureHeader, process.env.VAIR_WEBHOOK_SECRET);
+
+if (isMemberStatusEvent(event)) {
+  // membership or ambassador standing changed
+} else if (isRatingUpdatedEvent(event)) {
+  // a new rating, as a full per-sport snapshot
+} else if (isConnectionRevokedEvent(event)) {
+  // the member disconnected your app — stop reading their data
+} else if (isEventCreatedEvent(event)) {
+  // a new event was published
+}
+// Anything else is an event type this version does not know about. It still
+// verified, and arrives as the plain envelope — ignore it, or log it.
+```
+
+An event type the package does not recognise **verifies successfully and is handed over
+as-is**, and so does an unfamiliar value inside one it does recognise. Both grow on the API's
+schedule rather than this package's, and refusing one would break a working receiver over a
+change that is not a break.
+
+### Ordering and duplicates
+
+Delivery is at-least-once, and deliveries can arrive out of order.
+
+```ts
+if (isRatingUpdatedEvent(event)) {
+  const last = await store.get(event.data.memberId);
+  if (last && !isNewerSequence(event.data.sequence, last)) return;   // stale — skip it
+  await store.put(event.data.memberId, event.data.sequence);
+}
+```
+
+- **`sequence` is an unpadded decimal string, so do not compare it as one.** `'10000000' >
+  '9999999'` is `false`, which would discard every later delivery for that member from the
+  first power-of-ten crossing onward. `isNewerSequence()` and `compareSequence()` compare as
+  integers.
+- **Deduplicate with `dedupeKey(event)`**, which returns the id from the *signed body*. The
+  `X-Vairified-Event-Id` header carries the same value but is outside the signature, so a
+  replayed delivery can present a fresh one and header-based deduplication admits it every
+  time.
+
+### Rotating the secret
+
+`secret` accepts an array, and any one match verifies:
+
+```ts
+const event = await verifyWebhook(rawBody, signatureHeader, [
+  process.env.VAIR_WEBHOOK_SECRET,
+  process.env.VAIR_WEBHOOK_SECRET_PREVIOUS,
+]);
+```
+
+Deliveries queued before you rotated were signed with the **old** secret and keep arriving for
+hours afterwards. A verifier that knows only the new one discards them silently, so keep the
+previous secret configured until the retry tail has drained.
+
+### Why a delivery was refused
+
+Every refusal is a `WebhookSignatureError` with a `reason` you can branch on:
+
+| `reason` | Means |
+|---|---|
+| `no_secret_configured` | Your configuration, not an attack — almost always an unset environment variable. |
+| `invalid_option` | A tolerance or clock you passed in was not usable. |
+| `missing_signature` | No `X-Vairified-Signature` header. |
+| `malformed_signature` | The header was present but unparseable, or had no `t` / `v1`. |
+| `timestamp_out_of_tolerance` | The delivery's clock and yours disagree by more than the window (5 minutes by default, applied in both directions). |
+| `signature_mismatch` | The body does not match the signature under any secret supplied. |
+| `malformed_body` | The body was not JSON, or a field a partner gates access on was missing or the wrong type. |
+
+The message never contains the secret or either digest.
+
 ## Webhook Deliveries
 
 Inspect recent webhook delivery attempts for your app:

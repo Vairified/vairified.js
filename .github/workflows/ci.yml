@@ -31,8 +31,22 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Type check tests
+        # Separate from "Type check" because tsconfig.json deliberately excludes
+        # tests/ so they never land in dist. Nothing type-checked them until
+        # Vairified#1275: tsc did not see them, vitest transpiles via esbuild
+        # without checking, and biome does not type-check at all. A test could
+        # assert something type-level that was false and stay green forever --
+        # which is how four "narrowing failed" guards in the webhook suite read
+        # as proof that narrowing worked while proving nothing.
+        run: npm run typecheck:tests
+
       - name: Build
         run: npm run build
 
+      # conformance/webhook-cases.json is executed here (tests/test_conformance.py)
+      # and by vairified.js over the same byte-identical file, so a behaviour
+      # difference between the two SDKs fails a build rather than waiting for a
+      # person to notice. Parity used to be an assertion; it was wrong twice.
       - name: Test
         run: npm test

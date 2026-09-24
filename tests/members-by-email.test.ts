@@ -20,7 +20,14 @@ installServer();
 const client = (): Vairified => new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
 
 /** Capture the outgoing query so we can assert what went on the wire. */
-function respondWith(body: unknown, captured?: { url?: URL }, status = 200): void {
+// `body` is the JSON these tests put on the wire, including deliberately
+// malformed shapes — so it is typed as what MSW will serialise rather than
+// `unknown`, which `HttpResponse.json` cannot accept.
+function respondWith(
+  body: Parameters<typeof HttpResponse.json>[0],
+  captured?: { url?: URL },
+  status = 200,
+): void {
   server.use(
     http.get(`${BASE_URL}/partner/members/by-email`, ({ request }) => {
       if (captured) captured.url = new URL(request.url);
