@@ -5,6 +5,60 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-24
+
+### Added
+
+- **`verifyWebhook()` — verify a webhook delivery and get it back typed** ([Vairified#1275]). Until now a partner receiving webhooks had to implement the signature scheme themselves from prose, and then hand-write the event shapes. Both are now in the package:
+
+  ```ts
+  import { verifyWebhook, isMemberStatusEvent, WebhookSignatureError } from 'vairified';
+
+  try {
+    const event = await verifyWebhook(rawBody, signatureHeader, process.env.VAIR_WEBHOOK_SECRET);
+
+    if (isMemberStatusEvent(event)) {
+      console.log(event.data.memberId, event.data.isVairPlus);
+    }
+  } catch (err) {
+    if (err instanceof WebhookSignatureError) {
+      // err.reason: 'signature_mismatch' | 'timestamp_out_of_tolerance' | ...
+    }
+  }
+  ```
+
+  - **Takes no client and no API key.** A webhook receiver is an inbound HTTP handler — it often never calls the Partner API at all, and should not have to construct a client to check a signature.
+  - **It is `async`, so `await` it.** Verification uses Web Crypto, which has no synchronous HMAC. The function never returns a boolean, precisely so a forgotten `await` cannot be read as "valid".
+  - **Zero Node builtins.** No `node:crypto` import anywhere, so the package still runs unchanged on Workers, Deno, Bun and React Native.
+  - **Pass several secrets during a rotation.** `secret` accepts an array. Deliveries queued before you rotated were signed with the old secret and keep arriving for hours, so a verifier that knows only the new one silently discards them.
+  - The timestamp window is applied in **both** directions — a delivery dated too far in the future is refused exactly as a stale one is.
+  - Every refusal is a `WebhookSignatureError` carrying a `reason`; the message contains neither the secret nor either digest.
+
+- **Typed models and type guards for all four webhook event types** ([Vairified#1275]) — `member.status`, `rating.updated`, `connection.revoked` and `event.created`, reached through `isMemberStatusEvent()`, `isRatingUpdatedEvent()`, `isConnectionRevokedEvent()` and `isEventCreatedEvent()`.
+
+  - **An event type this package does not know verifies successfully and is handed over as-is.** New event types are added on the API's schedule, not this package's; refusing one would break a live receiver over a change that is not a break.
+  - The same applies to **unfamiliar values** inside a known event — a new `reason` on `connection.revoked`, a new certification status — which are passed through rather than rejected.
+  - Only the fields a partner gates access on are checked for presence and type: `event`, `eventId` and `timestamp` on every event, `memberId`/`isVairPlus`/`isAmbassador` on `member.status`, and `memberId`/`sequence` on `rating.updated`. Everything else arrives exactly as sent. A refused delivery is retried and then **dropped**, so the member's status stops updating at that partner entirely — an unexpected informational field is not worth that.
+
+- **`isNewerSequence()`, `compareSequence()` and `dedupeKey()` — the ordering and deduplication the docs used to only describe** ([Vairified#1275]).
+
+  ```ts
+  if (isRatingUpdatedEvent(event)) {
+    const last = await store.get(event.data.memberId);
+    if (last && !isNewerSequence(event.data.sequence, last)) return; // stale, skip it
+  }
+  ```
+
+  - `sequence` is an **unpadded decimal string**, so the obvious implementation compares strings — and `'10000000' > '9999999'` is `false`. A receiver following the written instruction would discard every later delivery for that member from the first power-of-ten crossing onward, permanently and with no error. These helpers compare as integers.
+  - **`dedupeKey()` returns the id from the signed body**, not from the `X-Vairified-Event-Id` header. That header is outside the signature, so a replayed delivery can carry a fresh value and header-based deduplication admits it every time. Delivery is at-least-once, so deduplication is yours to do.
+
+### Changed
+
+- The `RatingUpdate` docstring no longer describes the `rating.updated` **webhook** payload. It models the **polling** result of `client.members.ratingUpdates()`; the webhook has carried a multi-sport snapshot since [Vairified#899]. Nothing about the class changed — the description was wrong, and it was wrong in the direction that makes people reach for the wrong type.
+
+[Vairified#1275]: https://github.com/Vairified/Vairified/issues/1275
+[Vairified#899]: https://github.com/Vairified/Vairified/issues/899
+
 ## [0.7.0] - 2026-09-11
 
 ### Added
