@@ -5,6 +5,23 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-09-24
+
+### Added
+
+- **`member.emailVerified` says whether a member's email is proven, not just typed.** It is `true` only when VAIR's identity provider has verified the address in `member.email` as belonging to this member. **If you sign people in by email, check it:** an unverified address proves nothing about who holds it.
+
+  ```ts
+  const member = await client.members.get(4873327);
+
+  if (member.email && member.emailVerified) {
+    // Safe to treat member.email as this person's identity.
+  }
+  ```
+
+  - `false` whenever `email` is absent (no `profile:email` consent), and against an API build that predates the field, so it never reads as verified by omission.
+  - Requires the Partner API deployment that added `emailVerified` to `GET /partner/member`.
+
 ## [0.8.0] - 2026-09-24
 
 ### Added

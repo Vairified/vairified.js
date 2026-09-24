@@ -45,6 +45,29 @@ describe('Member.memberSince', () => {
   });
 });
 
+describe('Member.emailVerified', () => {
+  it('is true only when the API says the returned email is verified', () => {
+    const member = new Member(memberPayload({ email: 'mike@example.com', emailVerified: true }));
+    expect(member.emailVerified).toBe(true);
+  });
+
+  it('is false for an unverified email', () => {
+    const member = new Member(memberPayload({ email: 'mike@example.com', emailVerified: false }));
+    expect(member.emailVerified).toBe(false);
+  });
+
+  it('is false when the API build predates the field', () => {
+    const member = new Member(memberPayload({ email: 'mike@example.com' }));
+    expect(member.emailVerified).toBe(false);
+  });
+
+  it('can never be true without an email to describe', () => {
+    const member = new Member(memberPayload({ email: undefined, emailVerified: true }));
+    expect(member.email).toBeNull();
+    expect(member.emailVerified).toBe(false);
+  });
+});
+
 describe('MemberSportMap helpers', () => {
   it('values() and entries() expose every sport', () => {
     const member = new Member(
