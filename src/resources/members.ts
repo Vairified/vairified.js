@@ -8,17 +8,21 @@ import { ValidationError } from '../errors.js';
 import type { HttpTransport, QueryParams } from '../http.js';
 import { Member } from '../models/member.js';
 import { MembersByEmailResult } from '../models/members-by-email-result.js';
+import { ProvisionMembersResult } from '../models/provision-result.js';
 import { RatingUpdate } from '../models/rating-update.js';
 import type {
   MembersByEmailResultWire,
   PartnerMemberWire,
   PartnerRatingUpdateWire,
+  ProvisionMemberInput,
+  ProvisionMembersResultWire,
   SearchFilters,
 } from '../types.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 const MAX_EMAILS_PER_LOOKUP = 100;
+const MAX_MEMBERS_PER_PROVISION = 100;
 
 /**
  * Member operations — get a single member, auto-paginating search,
@@ -258,6 +262,70 @@ export class MembersResource {
       matched: wire?.matched ?? [],
       notFound: wire?.notFound ?? [],
     });
+  }
+
+  /**
+   * Give each person a VAIR identity: report an existing record, or create
+   * an unclaimed **ghost** the person later claims by signing up on VAIR
+   * with the same email. No VAIR login is created and nobody is emailed.
+   *
+   * **Requires both `key:member:provision` and `key:player:lookup`, on a
+   * TRUSTED partner app.** Neither is implied by `key:read`, `key:write` or
+   * `key:admin`.
+   *
+   * Each entry needs `email` or `phone`, plus `firstName` and `lastName`.
+   * Entries are independent: a bad one comes back `invalid` with a message
+   * you can show as written, and the rest still go through.
+   *
+   * **An `exists` result never carries an id**, whether the record is a
+   * member, several members, or another partner's ghost. Link an existing
+   * member only through their own sign-in.
+   *
+   * @param members - People to provision (max 100).
+   * @param options - Optional settings.
+   * @param options.sport - Sport code that seeds a new ghost's starting
+   *   rating (e.g. `'pickleball'`). Send it: without one the ghost has no
+   *   seed and the engine's default applies to their first match.
+   * @throws {@link ValidationError} If the list is empty or has more than
+   *   100 entries (before any request is made), or the API rejects the
+   *   request's shape.
+   * @throws {@link VairifiedError} With status 403 if the key lacks either
+   *   scope or its app is not TRUSTED.
+   * @category Members
+   *
+   * @example
+   * ```ts
+   * const result = await client.members.provision(
+   *   [{ email: 'pat@example.com', firstName: 'Pat', lastName: 'Rivera' }],
+   *   { sport: 'pickleball' },
+   * );
+   *
+   * const pat = result.get('pat@example.com');
+   * if (pat?.isCreated) saveVairId(pat.memberId);
+   * else if (pat?.exists) askThemToSignInWithVair();
+   * else console.warn(pat?.error?.message);
+   * ```
+   */
+  async provision(
+    members: readonly ProvisionMemberInput[],
+    options?: { sport?: string },
+  ): Promise<ProvisionMembersResult> {
+    if (members.length === 0) {
+      throw new ValidationError('At least one member is required');
+    }
+    if (members.length > MAX_MEMBERS_PER_PROVISION) {
+      throw new ValidationError(`Maximum ${MAX_MEMBERS_PER_PROVISION} members per request`);
+    }
+
+    const wire = await this.#http.request<ProvisionMembersResultWire>({
+      method: 'POST',
+      path: '/partner/members/provision',
+      body: {
+        ...(options?.sport ? { sport: options.sport } : {}),
+        members: members.map((m) => ({ ...m })),
+      },
+    });
+    return new ProvisionMembersResult({ results: wire?.results ?? [] });
   }
 
   /**
