@@ -112,6 +112,16 @@ export class Member {
   readonly sport: MemberSportMap;
   readonly activeLeagues: readonly string[] | null;
   readonly email: string | null;
+  /**
+   * Whether VAIR's identity provider has verified {@link email} as belonging
+   * to this member. **Sign a person in by email only when this is `true`**:
+   * an unverified address is only what was typed.
+   *
+   * `false` whenever `email` is absent (no `profile:email` consent), and
+   * against an API build that predates the field, so it can never read as
+   * verified by omission.
+   */
+  readonly emailVerified: boolean;
   readonly grantedScopes: readonly string[] | null;
 
   constructor(wire: PartnerMemberWire) {
@@ -132,6 +142,7 @@ export class Member {
     this.sport = new MemberSportMap(wire.sport);
     this.activeLeagues = wire.activeLeagues ? Object.freeze([...wire.activeLeagues]) : null;
     this.email = wire.email ?? null;
+    this.emailVerified = this.email !== null && wire.emailVerified === true;
     this.grantedScopes = wire.grantedScopes ? Object.freeze([...wire.grantedScopes]) : null;
     Object.freeze(this);
   }

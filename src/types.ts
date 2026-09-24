@@ -149,6 +149,8 @@ export interface PartnerMemberWire {
   readonly sport?: Readonly<Record<string, SportRatingWire>>;
   readonly activeLeagues?: readonly string[];
   readonly email?: string;
+  /** Present exactly when `email` is. */
+  readonly emailVerified?: boolean;
   readonly grantedScopes?: readonly string[];
 }
 
