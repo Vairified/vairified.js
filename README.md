@@ -332,7 +332,8 @@ if (isMemberStatusEvent(event)) {
 } else if (isRatingUpdatedEvent(event)) {
   // a new rating, as a full per-sport snapshot
 } else if (isConnectionRevokedEvent(event)) {
-  // the member disconnected your app — stop reading their data
+  // the member's connection to your app ended (event.data.reason says why) —
+  // stop reading their data
 } else if (isEventCreatedEvent(event)) {
   // a new event was published
 }

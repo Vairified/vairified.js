@@ -582,7 +582,23 @@ export interface MemberStatusEventDataWire {
 /** The `data` block of a `connection.revoked` event. */
 export interface ConnectionRevokedEventDataWire {
   readonly memberId: number | null;
-  readonly reason: OpenEnum<'player_deleted' | 'player_disconnected'>;
+  /**
+   * Why the connection ended. Every value means the same thing to you: stop
+   * reading this member's data. The four known today:
+   *
+   * - `player_deleted`: the member's account was erased.
+   * - `player_disconnected`: the member clicked Disconnect.
+   * - `admin_revoked`: Vairified staff ended the connection.
+   * - `security_revoked`: a security check ended it (a sign-in code was used
+   *   twice, so the connection it created was ended).
+   *
+   * Your own app ending a connection sends nothing; you already know.
+   *
+   * :warning: An open set. Never branch on it exhaustively.
+   */
+  readonly reason: OpenEnum<
+    'player_deleted' | 'player_disconnected' | 'admin_revoked' | 'security_revoked'
+  >;
   readonly revokedAt: string;
 }
 

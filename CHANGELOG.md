@@ -5,6 +5,14 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-10-04
+
+### Added
+
+- **Two more `connection.revoked` reasons are named in the type:** `admin_revoked` (Vairified staff ended the connection) and `security_revoked` (a security check ended it; today, a sign-in code used twice). The API now sends both, alongside `player_deleted` and `player_disconnected`. `ConnectionRevokedEventDataWire['reason']` lists all four, so editors autocomplete them. Every reason means the same thing to your receiver: stop reading that member's data. Your own app ending a connection sends no notice.
+
+  Nothing breaks if you are on 0.8.0: `reason` was already an open set, so these values were accepted and passed through before they were named. As before, never branch on it exhaustively.
+
 ## [0.8.0] - 2026-09-24
 
 ### Added

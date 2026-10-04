@@ -472,8 +472,9 @@ export function isMemberStatusEvent(event: VerifiedWebhookEvent): event is Membe
 /**
  * Narrow a verified event to `connection.revoked`.
  *
- * :warning: `data.reason` is an open set — `player_deleted` and
- * `player_disconnected` today, more later. Never branch on it exhaustively.
+ * :warning: `data.reason` is an open set — `player_deleted`,
+ * `player_disconnected`, `admin_revoked` and `security_revoked` today, more
+ * later. Never branch on it exhaustively.
  *
  * @category Webhooks
  */
