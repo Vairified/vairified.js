@@ -9,6 +9,7 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
 import {
+  type ConnectionRevokedEventDataWire,
   compareSequence,
   DEFAULT_TOLERANCE_SECONDS,
   dedupeKey,
@@ -304,6 +305,35 @@ describe('verifyWebhook — forward compatibility', () => {
     const event = await verifyWebhook(body, sign(body, GOLDEN.secret, NOW), GOLDEN.secret, at());
     if (!isConnectionRevokedEvent(event)) throw new Error('narrowing failed');
     expect(event.data.reason).toBe('player_disconnected');
+  });
+
+  // mutation-checked 2026-10-04: dropped 'admin_revoked' from the reason union ->
+  // `npm run typecheck:tests` red on the admin_revoked line ("not assignable to
+  // type 'never'"). The runtime half cannot catch that: the set is open, so an
+  // unlisted value verifies anyway, which is why the type check is here.
+  it('names every reason the API sends today, and each one verifies', async () => {
+    // `Extract` keeps a literal only if the union NAMES it; the open-set
+    // `string & {}` never matches one. So each line below compiles only while
+    // its reason is listed, which is what gives partners autocomplete for it.
+    type Named<R extends string> = Extract<ConnectionRevokedEventDataWire['reason'], R>;
+    const reasons: [
+      Named<'player_deleted'>,
+      Named<'player_disconnected'>,
+      Named<'admin_revoked'>,
+      Named<'security_revoked'>,
+    ] = ['player_deleted', 'player_disconnected', 'admin_revoked', 'security_revoked'];
+
+    for (const reason of reasons) {
+      const body = JSON.stringify({
+        event: 'connection.revoked',
+        eventId: `evt_${reason}`,
+        timestamp: '2026-10-04T12:00:00.000Z',
+        data: { memberId: 7204743, reason, revokedAt: '2026-10-04T12:00:00.000Z' },
+      });
+      const event = await verifyWebhook(body, sign(body, GOLDEN.secret, NOW), GOLDEN.secret, at());
+      if (!isConnectionRevokedEvent(event)) throw new Error('narrowing failed');
+      expect(event.data.reason).toBe(reason);
+    }
   });
 
   it('accepts an unfamiliar vairProStatus rather than rejecting it', async () => {
