@@ -3,8 +3,8 @@
  *
  * All SDK errors inherit from {@link VairifiedError}, so a single
  * `catch (err: unknown) { if (err instanceof VairifiedError) ... }`
- * covers everything. HTTP-status-specific subclasses (auth, not found,
- * rate limit, validation) are thrown automatically by the HTTP layer.
+ * covers everything. HTTP-status-specific subclasses (auth, permission,
+ * not found, rate limit, validation) are thrown automatically by the HTTP layer.
  *
  * @module
  */
@@ -54,6 +54,20 @@ export class AuthenticationError extends VairifiedError {
   constructor(message = 'Invalid API key', response?: unknown) {
     super(message, 401, response);
     this.name = 'AuthenticationError';
+  }
+}
+
+/**
+ * Thrown on HTTP 403 — the API key is valid but not allowed to do this: it
+ * lacks the scope the route needs (e.g. `leaderboard:read`), the player has
+ * not connected to your app, or the key's IP allow-list refuses the caller.
+ *
+ * @category Errors
+ */
+export class PermissionDeniedError extends VairifiedError {
+  constructor(message = 'Permission denied', response?: unknown) {
+    super(message, 403, response);
+    this.name = 'PermissionDeniedError';
   }
 }
 

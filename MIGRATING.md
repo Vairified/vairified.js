@@ -12,6 +12,8 @@ shows how to port existing code.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full release notes.
 
+> Upgrading from 0.8.x? See [Migrating from 0.8.x to 0.9.0](#migrating-from-08x-to-090) at the end.
+
 ## At a glance
 
 | 0.1.x                                            | 0.2.0                                                               |
@@ -41,12 +43,12 @@ All operations now live on sub-resources that mirror the REST path. The flat
 
 ```ts
 // Before
-const member = await client.getMember('vair_mem_xxx');
+const member = await client.getMember('4873327');
 const results = await client.search({ city: 'Austin' });
 await client.submitMatch(match);
 
 // After
-const member = await client.members.get('vair_mem_xxx');
+const member = await client.members.get('4873327');
 for await (const m of client.members.search({ city: 'Austin' })) { /* ... */ }
 await client.matches.submit(batch);
 ```
@@ -92,13 +94,13 @@ Fetch ratings for just the sports you care about with the `sport` filter:
 
 ```ts
 // All sports this player has ratings in
-const member = await client.members.get('vair_mem_xxx');
+const member = await client.members.get('4873327');
 
 // Just pickleball
-const member2 = await client.members.get('vair_mem_xxx', { sport: 'pickleball' });
+const member2 = await client.members.get('4873327', { sport: 'pickleball' });
 
 // Multiple sports
-const member3 = await client.members.get('vair_mem_xxx', {
+const member3 = await client.members.get('4873327', {
   sport: ['pickleball', 'padel'],
 });
 ```
@@ -250,3 +252,47 @@ await using client = new Vairified({ apiKey: 'vair_pk_xxx' });
 
 Supported environments: `"production"` (default), `"staging"`, `"local"`.
 Reads `VAIRIFIED_ENV` from the environment when not supplied.
+
+# Migrating from 0.8.x to 0.9.0
+
+0.9.0 removes and renames nothing. Two changes can still break existing code.
+
+## `SearchFilters.sortBy` only accepts the sortable fields
+
+`sortBy` is typed `PartnerSearchSortField`: `'lastName' | 'firstName' | 'memberId' | 'city' | 'state' | 'country'`. The API now refuses any other value with a 400. `'rating'` never worked: it always failed with a 500. A plain `string` variable no longer compiles:
+
+```ts
+const sortBy: string = req.query.sort; // ✗ not assignable to PartnerSearchSortField
+```
+
+Check the value against the exported list, which narrows the type:
+
+```ts
+import { PARTNER_SEARCH_SORT_FIELDS, type PartnerSearchSortField } from 'vairified';
+
+const isSortField = (v: string): v is PartnerSearchSortField =>
+  (PARTNER_SEARCH_SORT_FIELDS as readonly string[]).includes(v);
+
+const sortBy = isSortField(raw) ? raw : undefined;
+client.members.search({ sortBy });
+```
+
+Or cast it (`raw as PartnerSearchSortField`) and handle the API's 400, which surfaces as `ValidationError`.
+
+## Rating splits are frozen copies
+
+`SportRating.get()`, `values()`, `entries()`, iteration, `Member.split()` and `RatingUpdate.ratingSplits` used to return the live object from the parsed response. They now return a frozen `RatingSplit` copy with `label` always present (`null` when the API sent none). Mutating one throws a `TypeError` in strict mode, which covers every ES module:
+
+```ts
+const split = member.split('overall-open');
+split.rating = 4;                       // ✗ TypeError: Cannot assign to read only property
+const edited = { ...split, rating: 4 }; // ✓ copy, then change
+```
+
+## Behaviour to expect from the API
+
+Nothing to change in code, but don't rely on the old behaviour:
+
+- **Verified-track splits** (`overall-*`, `gender-*`, `mixed-*`, `singles-*`) are absent for a player not verified in that sport. The primary rating falls back to the recreational chain (`R` / `Rv`). Check `sportRating.has(key)` before you read one.
+- **On the leaderboard**, `list()` and `categories()` now check the API key the SDK sends. An invalid key throws `AuthenticationError`, a key without `leaderboard:read` throws `PermissionDeniedError`.
+- **Deprecated leaderboard options** `clubId` (on `list` and `rank`) and `city` (on `rank`) are no longer sent and log a warning. Remove them.

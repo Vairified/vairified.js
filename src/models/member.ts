@@ -4,14 +4,8 @@
  * @module
  */
 
-import type {
-  Gender,
-  MemberStatusWire,
-  PartnerMemberWire,
-  RatingSplitWire,
-  SportRatingWire,
-} from '../types.js';
-import { SportRating } from './sport-rating.js';
+import type { Gender, MemberStatusWire, PartnerMemberWire, SportRatingWire } from '../types.js';
+import { type RatingSplit, SportRating } from './sport-rating.js';
 
 /**
  * Map-like wrapper around a player's sport → {@link SportRating}.
@@ -74,8 +68,9 @@ export class MemberSportMap {
  * detail for public search).
  *
  * Rating data lives under {@link sport} — keyed by sport code. The
- * backend returns only the sports the player has ratings in, or only
- * the sports requested via the `sport=` query filter. Use
+ * backend returns only the sports the player has a visible rating in, or
+ * only the sports requested via the `sport=` query filter. A sport whose
+ * only ratings are unverified verified-track values is left out. Use
  * {@link ratingFor} to fetch the primary rating for a specific sport
  * with a sensible default.
  *
@@ -163,8 +158,19 @@ export class Member {
    * @param key Split key (e.g. `'overall-open'`).
    * @param sport Sport code — defaults to `'pickleball'`.
    */
-  split(key: string, sport = 'pickleball'): RatingSplitWire | null {
+  split(key: string, sport = 'pickleball'): RatingSplit | null {
     return this.sport.get(sport)?.get(key) ?? null;
+  }
+
+  /**
+   * Get a rating split for a sport by the label the web app shows
+   * (e.g. `'VS'`, `'RG40+'`). See {@link SportRating.byLabel}.
+   *
+   * @param label Web label, bracket suffix included.
+   * @param sport Sport code — defaults to `'pickleball'`.
+   */
+  splitByLabel(label: string, sport = 'pickleball'): RatingSplit | null {
+    return this.sport.get(sport)?.byLabel(label) ?? null;
   }
 
   /** Compact summary for console output. */

@@ -35,29 +35,31 @@ export class MembersResource {
   }
 
   /**
-   * Get a connected member by external ID.
+   * Get a connected member by member id.
    *
    * **Requires an active OAuth connection** between your partner app
    * and the player. Use the OAuth flow on `client.oauth` first.
    *
-   * @param playerId External player ID in `vair_mem_xxx` format.
+   * @param playerId The player's numeric member id, as a string (e.g. `'4873327'`) —
+   *   the only id the Partner API uses.
    * @param options.sport Optional sport filter — single code or list.
    *   When omitted, the response contains every sport the player has
    *   ratings in.
-   * @throws {@link NotFoundError} if the external ID is unknown.
-   * @throws {@link VairifiedError} if the player has not connected to
-   *   your app (403) or the request otherwise fails.
+   * @throws {@link NotFoundError} if the member id is unknown.
+   * @throws {@link PermissionDeniedError} if the player has not connected to
+   *   your app (403).
+   * @throws {@link VairifiedError} if the request otherwise fails.
    *
    * @example
    * ```ts
-   * const member = await client.members.get('vair_mem_xxx');
+   * const member = await client.members.get('4873327');
    * console.log(member.name, member.ratingFor('pickleball'));
    *
    * // Just pickleball
-   * const member2 = await client.members.get('vair_mem_xxx', { sport: 'pickleball' });
+   * const member2 = await client.members.get('4873327', { sport: 'pickleball' });
    *
    * // Multiple sports
-   * const member3 = await client.members.get('vair_mem_xxx', {
+   * const member3 = await client.members.get('4873327', {
    *   sport: ['pickleball', 'padel'],
    * });
    * ```

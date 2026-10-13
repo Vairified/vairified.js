@@ -42,8 +42,8 @@ export class MatchesResource {
    *   matches: [
    *     {
    *       identifier: 'm1',
-   *       teams: [['vair_mem_aaa', 'vair_mem_bbb'],
-   *               ['vair_mem_ccc', 'vair_mem_ddd']],
+   *       teams: [['4873327', '4873328'],
+   *               ['4873329', '4873330']],
    *       games: [{ scores: [11, 8] }, { scores: [11, 5] }],
    *     },
    *   ],

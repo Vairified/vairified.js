@@ -68,7 +68,7 @@ function readEnv(name: string): string | undefined {
  * ```ts
  * await using client = new Vairified({ apiKey: 'vair_pk_xxx' });
  *
- * const member = await client.members.get('vair_mem_xxx');
+ * const member = await client.members.get('4873327');
  * console.log(member.name, member.ratingFor('pickleball'));
  *
  * for await (const m of client.members.search({ city: 'Austin' })) {

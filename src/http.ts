@@ -15,6 +15,7 @@
 import {
   AuthenticationError,
   NotFoundError,
+  PermissionDeniedError,
   RateLimitError,
   VairifiedError,
   ValidationError,
@@ -179,6 +180,8 @@ async function throwFromResponse(response: Response): Promise<never> {
       throw new ValidationError(message, body);
     case 401:
       throw new AuthenticationError(message, body);
+    case 403:
+      throw new PermissionDeniedError(message, body);
     case 404:
       throw new NotFoundError(message, body);
     case 429: {

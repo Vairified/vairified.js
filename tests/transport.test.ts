@@ -245,7 +245,7 @@ describe('HTTP transport', () => {
       wheelchair: false,
       ratingMin: 3.5,
       ratingMax: 4.5,
-      sortBy: 'rating',
+      sortBy: 'lastName',
       sortOrder: 'desc',
     })) {
       /* drain */
@@ -260,7 +260,7 @@ describe('HTTP transport', () => {
     expect((params as URLSearchParams | null)?.get('wheelchair')).toBe('false');
     expect((params as URLSearchParams | null)?.get('rating1')).toBe('3.5');
     expect((params as URLSearchParams | null)?.get('rating2')).toBe('4.5');
-    expect((params as URLSearchParams | null)?.get('sortField')).toBe('rating');
+    expect((params as URLSearchParams | null)?.get('sortField')).toBe('lastName');
     expect((params as URLSearchParams | null)?.get('sortDirection')).toBe('desc');
   });
 

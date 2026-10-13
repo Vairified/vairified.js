@@ -4,7 +4,8 @@
  * @module
  */
 
-import type { PartnerRatingUpdateWire, RatingSplitWire } from '../types.js';
+import type { PartnerRatingUpdateWire } from '../types.js';
+import { type RatingSplit, toRatingSplit } from './sport-rating.js';
 
 /**
  * A single rating change notification.
@@ -18,6 +19,9 @@ import type { PartnerRatingUpdateWire, RatingSplitWire } from '../types.js';
  * {@link RatingUpdatedEventDataWire}, reachable through `verifyWebhook`. This
  * sentence used to claim otherwise, and a later change believed it.
  *
+ * `newRating`, `sport` and `changedAt` come from the newest rating a partner
+ * may see: an unverified verified-track value never drives an update.
+ *
  * @category Members
  */
 export class RatingUpdate {
@@ -28,7 +32,7 @@ export class RatingUpdate {
   readonly previousRating: number | null;
   readonly newRating: number | null;
   readonly changedAt: string | null;
-  readonly ratingSplits: Readonly<Record<string, RatingSplitWire>> | null;
+  readonly ratingSplits: Readonly<Record<string, RatingSplit>> | null;
 
   constructor(wire: PartnerRatingUpdateWire) {
     this.memberId = wire.memberId;
@@ -38,7 +42,13 @@ export class RatingUpdate {
     this.previousRating = wire.previousRating ?? null;
     this.newRating = wire.newRating ?? null;
     this.changedAt = wire.changedAt ?? null;
-    this.ratingSplits = wire.ratingSplits ? Object.freeze({ ...wire.ratingSplits }) : null;
+    this.ratingSplits = wire.ratingSplits
+      ? Object.freeze(
+          Object.fromEntries(
+            Object.entries(wire.ratingSplits).map(([key, split]) => [key, toRatingSplit(split)]),
+          ),
+        )
+      : null;
     Object.freeze(this);
   }
 
