@@ -71,9 +71,11 @@ export {
   PartnerEvent,
   RatingUpdate,
   SportRating,
+  SubmittedEvent,
   TournamentImportResult,
   WebhookDeliveriesResult,
   WebhookDelivery,
+  WithdrawnEvent,
 } from './models/index.js';
 export type {
   AuthorizationResponse,
@@ -124,6 +126,7 @@ export type {
   OpenEnum,
   PartnerEventClubWire,
   PartnerEventLocationWire,
+  PartnerEventSubmissionWire,
   PartnerEventWire,
   PartnerMemberEmailMatchWire,
   PartnerMemberWire,
@@ -135,6 +138,7 @@ export type {
   RatingUpdatedSportWire,
   SearchFilters,
   SportRatingWire,
+  SubmittedEventWire,
   TournamentImportResultWire,
   UnknownWebhookEventWire,
   VairifiedEnvironment,
@@ -143,6 +147,7 @@ export type {
   WebhookDeliveriesResultWire,
   WebhookDeliveryWire,
   WebhookEventEnvelopeWire,
+  WithdrawnEventWire,
 } from './types.js';
 export type { VerifyWebhookOptions } from './webhooks/verify.js';
 // ---- Webhook verification (no client needed) ----
