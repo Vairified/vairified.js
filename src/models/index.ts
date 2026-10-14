@@ -5,6 +5,7 @@
  */
 
 export { AttributionResult, MemberAttribution, MembersAttributionResult } from './attribution.js';
+export { EventClub, EventLocation, EventsPage, PartnerEvent } from './event.js';
 export { MatchBatchResult } from './match-batch-result.js';
 export { Member, MemberSportMap } from './member.js';
 export { MemberEmailMatch, MembersByEmailResult } from './members-by-email-result.js';
