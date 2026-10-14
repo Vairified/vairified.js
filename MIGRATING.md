@@ -255,7 +255,7 @@ Reads `VAIRIFIED_ENV` from the environment when not supplied.
 
 # Migrating from 0.8.x to 0.9.0
 
-0.9.0 removes and renames nothing. Two changes can still break existing code.
+0.9.0 removes and renames nothing in the SDK. Two SDK changes can still break existing code (the first two sections), and two API behaviour changes need a look even though they compile unchanged (`Rv` is now `R`, and the leaderboard's `verifiedOnly` default).
 
 ## `SearchFilters.sortBy` only accepts the sortable fields
 
@@ -289,10 +289,44 @@ split.rating = 4;                       // ✗ TypeError: Cannot assign to read 
 const edited = { ...split, rating: 4 }; // ✓ copy, then change
 ```
 
+## `Rv` is now `R`
+
+The recreational doubles chain is `R` for every player, in `abbr` and `label` alike. A player verified in the sport used to get `Rv` (and the label `RO`); neither is sent any more. The labels the API sends are `VO`, `VG`, `VM`, `VS`, `R` and `RS` (plus a bracket suffix such as `RS40+`).
+
+```ts
+// Before — inferred "verified" from the recreational abbreviation
+const verified = pb.abbr === 'Rv';      // ✗ never true now
+// After — the per-sport flag (a verified VO / VG / VM / VS rating in the sport)
+const verified = pb.isVairified;        // ✓
+```
+
+Also replace `byLabel('Rv')` / `byLabel('RO')` with `byLabel('R')`. As a leaderboard `category`, `'Rv'` and `'RO'` still resolve to `recreational`, but `LEADERBOARD_CATEGORY_LABELS` lists `'R'` only.
+
+## Leaderboard `verifiedOnly` no longer defaults to "unverified only"
+
+`verifiedOnly` on `leaderboard.list()` is an optional narrowing filter:
+
+| `verifiedOnly` | Before 0.9.0 | Now |
+|---|---|---|
+| unset | unverified players only | no filter — everyone |
+| `false` | unverified players only | no filter — everyone |
+| `true` | verified players only | VAIRified players only |
+
+The SDK sends it only when you set it. Verified boards (`overall`, `gender`, `mixed`, `singles`) list only verified players whatever it says; the recreational boards (`R`, `RS`) rank everyone unless you pass `true`. There is no longer a way to list *only* unverified players; if you relied on that, filter the page yourself.
+
+```ts
+await client.leaderboard.list({ category: 'R' });                     // everyone
+await client.leaderboard.list({ category: 'R', verifiedOnly: true }); // VAIRified only
+```
+
+## Six leaderboard tracks
+
+`LEADERBOARD_CATEGORIES` (new) is `overall`, `gender`, `singles`, `mixed`, `recreational`, `recreational_singles`. The engine's recreational same-gender and mixed tracks are internal: the API refuses them as a `category` (`ValidationError`) and never sends their splits, so don't look for `recreational_gender-*` / `recreational_mixed-*` keys.
+
 ## Behaviour to expect from the API
 
 Nothing to change in code, but don't rely on the old behaviour:
 
-- **Verified-track splits** (`overall-*`, `gender-*`, `mixed-*`, `singles-*`) are absent for a player not verified in that sport. The primary rating falls back to the recreational chain (`R` / `Rv`). Check `sportRating.has(key)` before you read one.
+- **Verified-track splits** (`overall-*`, `gender-*`, `mixed-*`, `singles-*`) are absent for a player not verified in that sport. The primary rating falls back to the recreational chain (`R`). Check `sportRating.has(key)` before you read one.
 - **On the leaderboard**, `list()` and `categories()` now check the API key the SDK sends. An invalid key throws `AuthenticationError`, a key without `leaderboard:read` throws `PermissionDeniedError`.
 - **Deprecated leaderboard options** `clubId` (on `list` and `rank`) and `city` (on `rank`) are no longer sent and log a warning. Remove them.

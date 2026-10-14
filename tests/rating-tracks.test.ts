@@ -1,7 +1,8 @@
 /**
  * The rating-tracks release of Partner API v1: web labels on every split and
- * sport, the recreational_gender / _mixed / _singles splits, withheld
- * verified-track splits, the eight leaderboard tracks, and the leaderboard's
+ * sport, `R` for the recreational chain whoever the player is, the
+ * recreational_singles split, withheld verified-track splits, the six
+ * leaderboard tracks, the optional verifiedOnly filter, and the leaderboard's
  * 401 / 403 on a bad key.
  */
 
@@ -30,7 +31,7 @@ installServer();
 
 const client = () => new Vairified({ apiKey: API_KEY, baseUrl: BASE_URL });
 
-/** A player verified in pickleball: verified tracks plus the new recreational ones. */
+/** A player verified in pickleball: verified tracks plus the recreational ones (R, RS). */
 function verifiedPlayer(): PartnerMemberWire {
   return memberPayload({
     sport: {
@@ -41,10 +42,9 @@ function verifiedPlayer(): PartnerMemberWire {
         ratingSplits: {
           'overall-open': { rating: 3.915, abbr: 'VO', label: 'VO' },
           'singles-12-13': { rating: 4.03, abbr: 'S12-13', label: 'VS12-13' },
-          'recreational-open': { rating: 3.8, abbr: 'Rv', label: 'Rv' },
-          'recreational_gender-open': { rating: 3.52, abbr: 'RG', label: 'RG' },
-          'recreational_mixed-40+': { rating: 3.71, abbr: 'RM40+', label: 'RM40+' },
+          'recreational-open': { rating: 3.8, abbr: 'R', label: 'R' },
           'recreational_singles-open': { rating: 3.6, abbr: 'RS', label: 'RS' },
+          'recreational_singles-40+': { rating: 3.71, abbr: 'RS40+', label: 'RS40+' },
           'asymmetric-open': { rating: 3.9, abbr: 'VA', label: null },
         },
         isVairified: true,
@@ -66,10 +66,10 @@ function unverifiedPlayer(): PartnerMemberWire {
       pickleball: {
         rating: 3.42,
         abbr: 'R',
-        label: 'RO',
+        label: 'R',
         ratingSplits: {
-          'recreational-open': { rating: 3.42, abbr: 'R', label: 'RO' },
-          'recreational_mixed-open': { rating: 3.3, abbr: 'RM', label: 'RM' },
+          'recreational-open': { rating: 3.42, abbr: 'R', label: 'R' },
+          'recreational_singles-open': { rating: 3.3, abbr: 'RS', label: 'RS' },
         },
         isVairified: false,
         isRater: false,
@@ -88,12 +88,21 @@ describe('member splits — labels and the recreational tracks', () => {
     expect(pb?.get('asymmetric-open')?.label).toBeNull();
   });
 
-  it('carries the recreational_gender / _mixed / _singles split keys', () => {
+  it('carries the recreational_singles split keys', () => {
     const pb = new Member(verifiedPlayer()).sport.get('pickleball');
-    expect(pb?.get('recreational_gender-open')).toMatchObject({ abbr: 'RG', label: 'RG' });
-    expect(pb?.get('recreational_mixed-40+')).toMatchObject({ abbr: 'RM40+', label: 'RM40+' });
-    expect(pb?.get('recreational_singles-open')?.rating).toBe(3.6);
-    expect(pb?.size).toBe(7);
+    expect(pb?.get('recreational_singles-open')).toMatchObject({ abbr: 'RS', label: 'RS' });
+    expect(pb?.get('recreational_singles-40+')).toMatchObject({ abbr: 'RS40+', label: 'RS40+' });
+    expect(pb?.has('recreational_gender-open')).toBe(false);
+    expect(pb?.has('recreational_mixed-open')).toBe(false);
+    expect(pb?.size).toBe(6);
+  });
+
+  it('labels the recreational chain R for a player verified in the sport (no Rv)', () => {
+    const pb = new Member(verifiedPlayer()).sport.get('pickleball');
+    expect(pb?.isVairified).toBe(true);
+    expect(pb?.get('recreational-open')).toEqual({ rating: 3.8, abbr: 'R', label: 'R' });
+    expect(pb?.byLabel('R')?.rating).toBe(3.8);
+    expect(pb?.byLabel('Rv')).toBeUndefined();
   });
 
   it('looks a split up by its web label', () => {
@@ -101,12 +110,12 @@ describe('member splits — labels and the recreational tracks', () => {
     const pb = member.sport.get('pickleball');
     // `abbr` keeps the legacy `S`; the label is what the web app shows.
     expect(pb?.byLabel('VS12-13')?.abbr).toBe('S12-13');
-    expect(pb?.byLabel('RM40+')?.rating).toBe(3.71);
+    expect(pb?.byLabel('RS40+')?.rating).toBe(3.71);
     expect(pb?.byLabel('XX')).toBeUndefined();
     // Exact match, as the API sends it.
-    expect(pb?.byLabel('rv')).toBeUndefined();
-    expect(member.splitByLabel('RG')?.rating).toBe(3.52);
-    expect(member.splitByLabel('RG', 'padel')).toBeNull();
+    expect(pb?.byLabel('rs')).toBeUndefined();
+    expect(member.splitByLabel('RS')?.rating).toBe(3.6);
+    expect(member.splitByLabel('RS', 'padel')).toBeNull();
   });
 
   it('defaults label to null when an older API omits it', () => {
@@ -131,7 +140,7 @@ describe('member splits — labels and the recreational tracks', () => {
     // The primary is the recreational chain now, and ratingFor() follows it.
     expect(member.ratingFor('pickleball')).toBe(3.42);
     expect(pb?.abbr).toBe('R');
-    expect(pb?.label).toBe('RO');
+    expect(pb?.label).toBe('R');
     expect(pb?.isVairified).toBe(false);
   });
 
@@ -159,7 +168,7 @@ describe('members.ratingUpdates — labels', () => {
               newRating: 3.52,
               changedAt: '2026-10-13T10:00:00.000Z',
               ratingSplits: {
-                'recreational_gender-open': { rating: 3.52, abbr: 'RG', label: 'RG' },
+                'recreational_singles-open': { rating: 3.52, abbr: 'RS', label: 'RS' },
                 'recreational-open': { rating: 3.4, abbr: 'R' },
               },
             },
@@ -168,45 +177,34 @@ describe('members.ratingUpdates — labels', () => {
       ),
     );
     const [update] = await client().members.ratingUpdates();
-    expect(update?.ratingSplits?.['recreational_gender-open']?.label).toBe('RG');
+    expect(update?.ratingSplits?.['recreational_singles-open']?.label).toBe('RS');
     expect(update?.ratingSplits?.['recreational-open']?.label).toBeNull();
     expect(Object.isFrozen(update?.ratingSplits?.['recreational-open'])).toBe(true);
   });
 });
 
-describe('leaderboard — the eight tracks', () => {
-  it('exposes the 8 category codes and the accepted labels', () => {
+describe('leaderboard — the six tracks', () => {
+  it('exposes the 6 category codes and their labels', () => {
     expect(LEADERBOARD_CATEGORIES).toEqual([
       'overall',
       'gender',
       'singles',
       'mixed',
       'recreational',
-      'recreational_gender',
-      'recreational_mixed',
       'recreational_singles',
     ]);
-    expect(LEADERBOARD_CATEGORY_LABELS).toEqual([
-      'VO',
-      'VG',
-      'VM',
-      'VS',
-      'S',
-      'RO',
-      'Rv',
-      'R',
-      'RG',
-      'RM',
-      'RS',
-    ]);
+    expect(LEADERBOARD_CATEGORY_LABELS).toEqual(['VO', 'VG', 'VM', 'VS', 'R', 'RS']);
     expect(Object.isFrozen(LEADERBOARD_CATEGORIES)).toBe(true);
+    expect(Object.isFrozen(LEADERBOARD_CATEGORY_LABELS)).toBe(true);
   });
 
+  // `Rv` is a legacy label the API still resolves; the SDK forwards it untouched.
   it.each([
-    'recreational_gender',
-    'recreational_mixed',
+    'recreational',
     'recreational_singles',
-    'RG',
+    'R',
+    'RS',
+    'Rv',
     'vs',
   ])('forwards category %s as given', async (category) => {
     let sent: string | null = null;
@@ -255,25 +253,7 @@ describe('leaderboard — the eight tracks', () => {
             { code: 'gender', name: 'Same-Gender Doubles', label: 'VG', verifiedOnly: true },
             { code: 'singles', name: 'Singles', label: 'VS', verifiedOnly: true },
             { code: 'mixed', name: 'Mixed Doubles', label: 'VM', verifiedOnly: true },
-            {
-              code: 'recreational',
-              name: 'Recreational',
-              label: 'RO',
-              verifiedOnly: false,
-              verifiedLabel: 'Rv',
-            },
-            {
-              code: 'recreational_gender',
-              name: 'Recreational Gender',
-              label: 'RG',
-              verifiedOnly: false,
-            },
-            {
-              code: 'recreational_mixed',
-              name: 'Recreational Mixed',
-              label: 'RM',
-              verifiedOnly: false,
-            },
+            { code: 'recreational', name: 'Recreational', label: 'R', verifiedOnly: false },
             {
               code: 'recreational_singles',
               name: 'Recreational Singles',
@@ -289,14 +269,55 @@ describe('leaderboard — the eight tracks', () => {
     );
 
     const tracks = await client().leaderboard.categoryList();
-    expect(tracks).toHaveLength(8);
+    expect(tracks).toHaveLength(6);
     expect(tracks.map((t) => t.code)).toEqual([...LEADERBOARD_CATEGORIES]);
+    expect(tracks.map((t) => t.label)).toEqual(['VO', 'VG', 'VS', 'VM', 'R', 'RS']);
     expect(tracks[0]).toBeInstanceOf(LeaderboardCategoryInfo);
     expect(tracks[2]).toMatchObject({ code: 'singles', label: 'VS', verifiedOnly: true });
-    expect(tracks[2]?.verifiedLabel).toBeNull();
-    expect(tracks[4]).toMatchObject({ label: 'RO', verifiedLabel: 'Rv', verifiedOnly: false });
+    expect(tracks[4]).toEqual(
+      new LeaderboardCategoryInfo({
+        code: 'recreational',
+        name: 'Recreational',
+        label: 'R',
+        verifiedOnly: false,
+      }),
+    );
+    expect(Object.keys(tracks[4] ?? {})).toEqual(['code', 'name', 'label', 'verifiedOnly']);
     expect(Object.isFrozen(tracks)).toBe(true);
     expect(Object.isFrozen(tracks[0])).toBe(true);
+  });
+
+  describe('verifiedOnly — an optional filter, sent only when set', () => {
+    const capture = () => {
+      const seen: (string | null)[] = [];
+      server.use(
+        http.get(`${BASE_URL}/leaderboard`, ({ request }) => {
+          const params = new URL(request.url).searchParams;
+          seen.push(params.has('verifiedOnly') ? params.get('verifiedOnly') : null);
+          return HttpResponse.json({ players: [] });
+        }),
+      );
+      return seen;
+    };
+
+    it('is not sent when unset, so R / RS boards rank everyone', async () => {
+      const seen = capture();
+      await client().leaderboard.list({ category: 'R' });
+      await client().leaderboard.list({ category: 'recreational_singles' });
+      expect(seen).toEqual([null, null]);
+    });
+
+    it('is sent as true when the caller narrows to VAIRified players', async () => {
+      const seen = capture();
+      await client().leaderboard.list({ category: 'R', verifiedOnly: true });
+      expect(seen).toEqual(['true']);
+    });
+
+    it('is sent as false when the caller sets it (no filter, as the API reads it)', async () => {
+      const seen = capture();
+      await client().leaderboard.list({ category: 'VO', verifiedOnly: false });
+      expect(seen).toEqual(['false']);
+    });
   });
 
   it('categoryList() is empty when the body has no categories array', async () => {
@@ -359,7 +380,7 @@ describe('rating.updated webhook — the new keys parse', () => {
   const sign = (body: string) =>
     `t=${now},v1=${createHmac('sha256', secret).update(`${now}.${body}`).digest('hex')}`;
 
-  it('verifies and types a snapshot carrying labels and RG/RM/RS splits', async () => {
+  it('verifies and types a snapshot carrying labels and R/RS splits', async () => {
     const body = JSON.stringify({
       event: 'rating.updated',
       eventId: 'evt_tracks',
@@ -370,10 +391,10 @@ describe('rating.updated webhook — the new keys parse', () => {
           pickleball: {
             rating: 3.42,
             abbr: 'R',
-            label: 'RO',
+            label: 'R',
             ratingSplits: {
-              'recreational-open': { rating: 3.42, abbr: 'R', label: 'RO' },
-              'recreational_gender-open': { rating: 3.52, abbr: 'RG', label: 'RG' },
+              'recreational-open': { rating: 3.42, abbr: 'R', label: 'R' },
+              'recreational_singles-open': { rating: 3.52, abbr: 'RS', label: 'RS' },
               'recreational_singles-40+': {
                 rating: 3.3,
                 abbr: 'RS40+',
@@ -396,8 +417,8 @@ describe('rating.updated webhook — the new keys parse', () => {
     const event = await verifyWebhook(body, sign(body), secret, { nowSeconds: now });
     if (!isRatingUpdatedEvent(event)) throw new Error('narrowing failed');
     const pb: RatingUpdatedSportWire | undefined = event.data.sports?.pickleball;
-    expect(pb?.label).toBe('RO');
-    expect(pb?.ratingSplits?.['recreational_gender-open']?.label).toBe('RG');
+    expect(pb?.label).toBe('R');
+    expect(pb?.ratingSplits?.['recreational_singles-open']?.label).toBe('RS');
     expect(pb?.ratingSplits?.['recreational_singles-40+']?.abbr).toBe('RS40+');
     expect(pb?.ratingSplits?.['overall-open']).toBeUndefined();
     expect((pb as Record<string, unknown> | undefined)?.someFutureSportKey).toBe('kept');

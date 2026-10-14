@@ -79,7 +79,7 @@ if (pb) {
   console.log(pb.get('overall-open')?.rating);  // 3.915
   console.log(pb.has('singles-open'));          // true
   console.log(pb.byLabel('VS')?.abbr);          // 'S' — look up by web label
-  console.log(pb.get('recreational_gender-open')?.label); // 'RG'
+  console.log(pb.get('recreational-open')?.label); // 'R' — for every player
   for (const [key, split] of pb) {
     console.log(key, split.rating, split.label);
   }
@@ -88,7 +88,7 @@ if (pb) {
 
 Verified-track splits (`overall-*`, `gender-*`, `mixed-*`, `singles-*`) are sent
 only for a player verified in that sport. For anyone else they are absent, and
-the primary `rating` / `abbr` is the recreational chain (`R` / `Rv`). Check
+the primary `rating` / `abbr` is the recreational chain (`R`). Check
 `pb.has(key)` rather than assuming a key exists.
 
 ### Bulk member lookup
@@ -486,7 +486,6 @@ const tx = await client.leaderboard.list({
   category: 'singles', // or the label 'VS'; see LEADERBOARD_CATEGORIES
   scope: 'state',
   state: 'TX',
-  verifiedOnly: true,
   limit: 50,
 });
 
@@ -497,10 +496,12 @@ const rank = await client.leaderboard.rank('4873327', {
   contextSize: 5,
 });
 
-// Recreational same-gender doubles, by label
-const rg = await client.leaderboard.list({ category: 'RG' });
+// The recreational board (label 'R') ranks everyone; verifiedOnly narrows it
+// to VAIRified players. Leave verifiedOnly unset for no filter.
+const rec = await client.leaderboard.list({ category: 'R' });
+const recVerified = await client.leaderboard.list({ category: 'R', verifiedOnly: true });
 
-// The eight tracks as typed models
+// The six tracks as typed models
 for (const track of await client.leaderboard.categoryList()) {
   console.log(track.code, track.label, track.verifiedOnly);
 }
@@ -510,8 +511,10 @@ const categories = await client.leaderboard.categories();
 ```
 
 Tracks: `overall` (VO), `gender` (VG), `singles` (VS), `mixed` (VM) are verified
-boards; `recreational` (RO / Rv), `recreational_gender` (RG), `recreational_mixed`
-(RM), `recreational_singles` (RS) are recreational. Rank and percentile are scoped
+boards and list only players verified in the sport; `recreational` (R) and
+`recreational_singles` (RS) are recreational boards and rank every player.
+`verifiedOnly` is an optional filter, sent only when you set it: `true` lists only
+VAIRified players, unset or `false` applies no filter. Rank and percentile are scoped
 to the sport. The leaderboard routes are public, but the key the SDK sends is
 checked: an invalid or revoked key throws `AuthenticationError`, a key without
 `leaderboard:read` throws `PermissionDeniedError`.
@@ -681,13 +684,13 @@ VAIRification & VAIR-Pro status are **per-sport** — read them off each
 const pb = member.sport.get('pickleball');
 pb?.rating              // Primary rating for this sport
 pb?.abbr                // "VO", "R", etc. (legacy partner codes)
-pb?.label               // "VO", "RO", "Rv" — the web app's label, or null
+pb?.label               // "VO", "R" — the web app's label, or null
 pb?.isVairified         // per-sport VAIRified flag (Vairified#783)
 pb?.isRater             // per-sport rater flag
 pb?.isVairPro           // per-sport VAIR-Pro flag
 pb?.isVairProStatus     // 'PENDING' | 'ACTIVE' | null
 pb?.get('overall-open') // Any split key — { rating, abbr, label }
-pb?.byLabel('RG')       // RatingSplit | undefined, by web label
+pb?.byLabel('RS')       // RatingSplit | undefined, by web label
 pb?.size                // Number of splits
 pb?.has('singles-40+')  // Membership check
 for (const [key, split] of pb ?? []) { /* iterate */ }

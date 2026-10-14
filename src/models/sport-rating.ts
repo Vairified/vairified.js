@@ -15,14 +15,13 @@ import type { RatingSplitWire, SportRatingWire, VairProStatus } from '../types.j
 export interface RatingSplit extends RatingSplitWire {
   /**
    * The label the VAIRified web app shows for this split, bracket suffix
-   * included — `VO`, `VG`, `VM`, `VS` (verified tracks), `RO` / `Rv` (the
-   * recreational chain, `Rv` for a player verified in the sport), `RG`, `RM`,
-   * `RS` (recreational tracks), e.g. `VS12-13`. `null` for the tracks the web
-   * app does not show (provisional, asymmetric).
+   * included — `VO`, `VG`, `VM`, `VS` (verified tracks), `R` (the
+   * recreational doubles chain, for every player) and `RS` (recreational
+   * singles), e.g. `VS12-13`. `null` for the tracks the web app does not show
+   * (provisional, asymmetric).
    *
    * Use this, not {@link RatingSplitWire.abbr}, when you display a label:
-   * `abbr` keeps the legacy partner codes (`S` for verified singles, `R` / `Rv`
-   * for the recreational chain).
+   * `abbr` keeps the legacy partner code `S` for verified singles.
    */
   readonly label: string | null;
 }
@@ -42,7 +41,7 @@ export function toRatingSplit(wire: RatingSplitWire): RatingSplit {
  *
  * The top-level `rating` / `abbr` is the primary rating for that sport:
  * the verified overall-open rating (`VO`) for a player verified in the
- * sport, otherwise the recreational chain (`R` / `Rv`). Every category × age
+ * sport, otherwise the recreational chain (`R`). Every category × age
  * bracket the API sends is also available via {@link get}, {@link has},
  * {@link byLabel}, and iteration.
  *
@@ -72,12 +71,12 @@ export class SportRating {
   /** Category abbreviation for the primary rating (e.g. `'VO'`, `'R'`). */
   readonly abbr: string;
   /**
-   * The web app's label for the primary rating (`'VO'`, `'RO'`, `'Rv'`), or
+   * The web app's label for the primary rating (`'VO'`, `'R'`), or
    * `null` when the API sent none. See {@link RatingSplit.label}.
    */
   readonly label: string | null;
 
-  /** Player is VAIRified in this sport (has a verified, non-recreational rating). */
+  /** Player is VAIRified in this sport: has a verified VO / VG / VM / VS rating there. */
   readonly isVairified: boolean;
   /** Player is an active VAIR Pro (can rate) in this sport. Alias of {@link isVairPro}. */
   readonly isRater: boolean;
@@ -113,7 +112,7 @@ export class SportRating {
 
   /**
    * Look up a rating split by the label the web app shows, bracket suffix
-   * included (e.g. `'VS'`, `'VO40+'`, `'RG12-13'`, `'Rv'`). Matches
+   * included (e.g. `'VS'`, `'VO40+'`, `'RS12-13'`, `'R'`). Matches
    * {@link RatingSplit.label} exactly, as the API sends it. Returns
    * `undefined` when no split carries that label.
    */

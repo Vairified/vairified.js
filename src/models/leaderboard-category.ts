@@ -12,7 +12,8 @@ import type { OpenEnum } from '../types.js';
  * Every leaderboard `category` code, in the order the API lists them.
  *
  * The first four are **verified** tracks — their boards list only players
- * verified in the sport. The last four are **recreational** tracks.
+ * verified in the sport. The last two are **recreational** tracks — their
+ * boards rank every player, verified in the sport or not.
  *
  * @category Leaderboards
  */
@@ -22,24 +23,22 @@ export const LEADERBOARD_CATEGORIES = Object.freeze([
   'singles',
   'mixed',
   'recreational',
-  'recreational_gender',
-  'recreational_mixed',
   'recreational_singles',
 ] as const);
 
 /**
  * A leaderboard `category` code: `overall` (VO), `gender` (VG), `singles`
- * (VS), `mixed` (VM), `recreational` (RO / Rv), `recreational_gender` (RG),
- * `recreational_mixed` (RM), `recreational_singles` (RS).
+ * (VS), `mixed` (VM), `recreational` (R), `recreational_singles` (RS).
  *
  * @category Leaderboards
  */
 export type LeaderboardCategory = (typeof LEADERBOARD_CATEGORIES)[number];
 
 /**
- * The track labels the API accepts in place of a code, case-insensitively.
- * `S` (verified singles) and `R` / `Rv` (the recreational chain) are the legacy
- * partner abbreviations and keep resolving.
+ * The track labels the API accepts in place of a code, case-insensitively —
+ * the labels the web app shows, one per track. The API still resolves the
+ * legacy `S` (verified singles) and `RO` / `Rv` (the recreational chain, now
+ * `R`); they are left out here so new code uses the current labels.
  *
  * @category Leaderboards
  */
@@ -48,12 +47,7 @@ export const LEADERBOARD_CATEGORY_LABELS = Object.freeze([
   'VG',
   'VM',
   'VS',
-  'S',
-  'RO',
-  'Rv',
   'R',
-  'RG',
-  'RM',
   'RS',
 ] as const);
 
@@ -84,8 +78,6 @@ export interface LeaderboardCategoryInfoWire {
   readonly name: string;
   readonly label: string;
   readonly verifiedOnly: boolean;
-  /** Present on the recreational chain only. */
-  readonly verifiedLabel?: string;
 }
 
 /**
@@ -99,22 +91,19 @@ export class LeaderboardCategoryInfo {
   readonly code: OpenEnum<LeaderboardCategory>;
   /** Display name (`'Doubles'`, `'Singles'`, `'Recreational'`, …). */
   readonly name: string;
-  /** The label the web app shows for this track (`'VO'`, `'RO'`, `'RG'`, …). */
+  /** The label every surface shows for this track (`'VO'`, `'VS'`, `'R'`, `'RS'`). */
   readonly label: string;
-  /** `true` for the verified tracks: their board lists only players verified in the sport. */
-  readonly verifiedOnly: boolean;
   /**
-   * The recreational chain's label for a player verified in the sport
-   * (`'Rv'`); `null` on every other track.
+   * `true` for the verified tracks: their board lists only players verified in
+   * the sport. `false` for `R` / `RS`, whose boards rank every player.
    */
-  readonly verifiedLabel: string | null;
+  readonly verifiedOnly: boolean;
 
   constructor(wire: LeaderboardCategoryInfoWire) {
     this.code = wire.code;
     this.name = wire.name;
     this.label = wire.label;
     this.verifiedOnly = wire.verifiedOnly;
-    this.verifiedLabel = wire.verifiedLabel ?? null;
     Object.freeze(this);
   }
 

@@ -164,7 +164,7 @@ export class Member {
 
   /**
    * Get a rating split for a sport by the label the web app shows
-   * (e.g. `'VS'`, `'RG40+'`). See {@link SportRating.byLabel}.
+   * (e.g. `'VS'`, `'RS40+'`). See {@link SportRating.byLabel}.
    *
    * @param label Web label, bracket suffix included.
    * @param sport Sport code — defaults to `'pickleball'`.

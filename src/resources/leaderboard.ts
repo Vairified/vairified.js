@@ -36,7 +36,9 @@ export function resetDeprecationWarnings(): void {
  * Read-only leaderboard queries.
  *
  * Verified boards (`overall`, `gender`, `mixed`, `singles`) list only players
- * verified in the sport, and rank / percentile are scoped to the sport.
+ * verified in the sport; the recreational boards (`recreational` / R,
+ * `recreational_singles` / RS) rank every player. Rank and percentile are
+ * scoped to the sport.
  *
  * `list()` and `categories()` / `categoryList()` are public routes, but the
  * SDK always sends your key, and a key that is sent is checked: an invalid or
@@ -72,7 +74,9 @@ export class LeaderboardResource {
       gender: options.gender?.toUpperCase(),
       minGames: options.minGames,
       search: options.search,
-      verifiedOnly: options.verifiedOnly === true ? true : undefined,
+      // Sent only when the caller sets it: true narrows to VAIRified players,
+      // false or absent is no filter.
+      verifiedOnly: options.verifiedOnly,
     };
 
     const data = await this.#http.request<Record<string, unknown> | undefined>({
