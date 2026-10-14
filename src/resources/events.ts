@@ -122,8 +122,8 @@ export class EventsResource {
    * because a listing with half a coordinate cannot be placed and would never
    * appear in a radius search.
    *
-   * Requires the `key:event:submit` scope, granted per partner, and an API key
-   * linked to your partner application.
+   * Requires the `key:event:submit` scope, which Vairified adds to a specific
+   * key on request, and an API key linked to your partner application.
    *
    * @param submission - The event to list.
    * @returns {@link SubmittedEvent} with Vairified's id and whether it was created.
