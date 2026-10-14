@@ -17,6 +17,8 @@ import {
   NotFoundError,
   PermissionDeniedError,
   RateLimitError,
+  ScoreEntryPausedError,
+  ServiceUnavailableError,
   VairifiedError,
   ValidationError,
 } from './errors.js';
@@ -168,8 +170,9 @@ async function throwFromResponse(response: Response): Promise<never> {
   }
 
   let message: string;
+  let apiBody: ApiErrorResponse | undefined;
   if (body && typeof body === 'object' && !Array.isArray(body)) {
-    const apiBody = body as ApiErrorResponse;
+    apiBody = body as ApiErrorResponse;
     message = apiBody.message || apiBody.error || text || `HTTP ${status}`;
   } else {
     message = text || `HTTP ${status}`;
@@ -189,7 +192,32 @@ async function throwFromResponse(response: Response): Promise<never> {
       const retryAfter = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : undefined;
       throw new RateLimitError(message, Number.isFinite(retryAfter) ? retryAfter : undefined, body);
     }
+    case 503: {
+      // The header wins; the body's `retryAfter` covers a proxy that strips it.
+      const retryAfter =
+        parseRetryAfterSeconds(response.headers.get('Retry-After')) ??
+        parseRetryAfterSeconds(apiBody?.retryAfter);
+      if (apiBody?.code === 'SCORE_ENTRY_PAUSED' || apiBody?.error === 'SCORE_ENTRY_PAUSED') {
+        throw new ScoreEntryPausedError(message, retryAfter, body);
+      }
+      throw new ServiceUnavailableError(message, retryAfter, body);
+    }
     default:
       throw new VairifiedError(message, status, body);
   }
+}
+
+/**
+ * Read a `Retry-After` value as whole seconds. Only the delta-seconds form is
+ * understood (what the API sends); an HTTP date, a negative or a garbage
+ * value yields `undefined` rather than a wait the caller cannot trust.
+ *
+ * @internal
+ */
+function parseRetryAfterSeconds(value: string | number | null | undefined): number | undefined {
+  if (value === null || value === undefined) return undefined;
+  const text = String(value).trim();
+  if (!/^\d+$/.test(text)) return undefined;
+  const seconds = Number.parseInt(text, 10);
+  return Number.isSafeInteger(seconds) ? seconds : undefined;
 }

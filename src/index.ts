@@ -55,6 +55,8 @@ export {
   OAuthError,
   PermissionDeniedError,
   RateLimitError,
+  ScoreEntryPausedError,
+  ServiceUnavailableError,
   VairifiedError,
   ValidationError,
   WebhookSignatureError,

@@ -613,6 +613,26 @@ the backend returns only the resulting access token (or a session) to the app.
 The SDK maps HTTP status codes to typed exceptions. All typed exceptions inherit from
 `VairifiedError`, so a single `catch` can handle everything.
 
+| Status | Error | Means |
+|---|---|---|
+| 400 | `ValidationError` | Bad request, invalid input |
+| 401 | `AuthenticationError` | Invalid or missing API key |
+| 403 | `PermissionDeniedError` | Missing scope, or the player has not connected |
+| 404 | `NotFoundError` | Resource not found |
+| 429 | `RateLimitError` | Rate limit exceeded; `retryAfter` seconds |
+| 503 + code `SCORE_ENTRY_PAUSED` | `ScoreEntryPausedError` | Score entry is paused for maintenance; `retryAfter` seconds |
+| 503 | `ServiceUnavailableError` | Temporarily unavailable; `retryAfter` seconds when the server says |
+| other | `VairifiedError` | Any other failure; check `statusCode` |
+| — | `OAuthError` | OAuth-specific failure; `errorCode` |
+
+`ScoreEntryPausedError` extends `ServiceUnavailableError`. During a rating maintenance
+window Vairified pauses score entry: `matches.submit()` and `matches.tournamentImport()`
+throw it, while reads keep working. Nothing was saved, so resubmit the same payload later.
+
+**The SDK never retries a request on its own**, for any status. If you retry a 429 or a
+503, wait at least `err.retryAfter` seconds (the score-entry pause asks for 300) and cap the
+number of attempts; retrying in a tight loop only adds load to a service that has said no.
+
 ```ts
 import {
   Vairified,
@@ -623,6 +643,8 @@ import {
   NotFoundError,
   ValidationError,
   OAuthError,
+  ScoreEntryPausedError,
+  ServiceUnavailableError,
 } from 'vairified';
 
 try {
@@ -640,6 +662,10 @@ try {
     console.log(`Bad request: ${err.message}`);
   } else if (err instanceof OAuthError) {
     console.log(`OAuth error: ${err.message} (code: ${err.errorCode})`);
+  } else if (err instanceof ScoreEntryPausedError) {
+    console.log(`Score entry paused; resubmit in ${err.retryAfter ?? 300}s`);
+  } else if (err instanceof ServiceUnavailableError) {
+    console.log(`Service unavailable; retry after ${err.retryAfter}s`);
   } else if (err instanceof VairifiedError) {
     console.log(`API error: ${err.message} (status: ${err.statusCode})`);
   } else {

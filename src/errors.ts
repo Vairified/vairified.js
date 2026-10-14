@@ -4,7 +4,8 @@
  * All SDK errors inherit from {@link VairifiedError}, so a single
  * `catch (err: unknown) { if (err instanceof VairifiedError) ... }`
  * covers everything. HTTP-status-specific subclasses (auth, permission,
- * not found, rate limit, validation) are thrown automatically by the HTTP layer.
+ * not found, rate limit, validation, service unavailable) are thrown
+ * automatically by the HTTP layer.
  *
  * @module
  */
@@ -42,6 +43,53 @@ export class RateLimitError extends VairifiedError {
     super(message, 429, response);
     this.name = 'RateLimitError';
     this.retryAfter = retryAfter;
+  }
+}
+
+/**
+ * Thrown on HTTP 503 — the API is temporarily refusing this request.
+ * Carries the wait the server asked for, from the `Retry-After` header (or the
+ * body's `retryAfter` when the header is missing).
+ *
+ * The SDK never retries on its own. A 503 is safe to retry later, but wait at
+ * least {@link retryAfter} seconds first: retrying in a tight loop only adds
+ * load to a service that has said it is not taking the request.
+ *
+ * @category Errors
+ */
+export class ServiceUnavailableError extends VairifiedError {
+  /** Seconds to wait before retrying, or `undefined` if the server didn't say. */
+  readonly retryAfter?: number;
+
+  constructor(message = 'Service unavailable', retryAfter?: number, response?: unknown) {
+    super(message, 503, response);
+    this.name = 'ServiceUnavailableError';
+    this.retryAfter = retryAfter;
+  }
+}
+
+/**
+ * Thrown on HTTP 503 with code `SCORE_ENTRY_PAUSED`: Vairified has paused
+ * score entry for a rating maintenance window. Only writes that create or
+ * re-rate matches are refused (`matches.submit()`, `matches.tournamentImport()`);
+ * reads keep working.
+ *
+ * Nothing was saved. Resubmit the same payload after {@link retryAfter}
+ * seconds (the API currently asks for 300). The SDK does not retry for you.
+ *
+ * @category Errors
+ */
+export class ScoreEntryPausedError extends ServiceUnavailableError {
+  /** The API's error code for this refusal. */
+  readonly code = 'SCORE_ENTRY_PAUSED' as const;
+
+  constructor(
+    message = 'Score entry is paused for maintenance',
+    retryAfter?: number,
+    response?: unknown,
+  ) {
+    super(message, retryAfter, response);
+    this.name = 'ScoreEntryPausedError';
   }
 }
 

@@ -520,6 +520,10 @@ export interface ApiErrorResponse {
   readonly message?: string;
   readonly error?: string;
   readonly statusCode?: number;
+  /** Machine-readable error code, when the API sends one (e.g. `'SCORE_ENTRY_PAUSED'`). */
+  readonly code?: string;
+  /** Seconds to wait before retrying, on refusals that say so (mirrors `Retry-After`). */
+  readonly retryAfter?: number;
 }
 
 // ---------------------------------------------------------------------------
