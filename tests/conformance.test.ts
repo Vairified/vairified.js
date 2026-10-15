@@ -119,7 +119,7 @@ describe('conformance: the rating-tracks snapshot', () => {
   // The verdict loop above only proves the case verifies. This reads the same
   // case and asserts what the Python twin asserts about its contents, so the
   // two SDKs agree on what a partner receives, not just on accepting it.
-  it('accept/ru-rating-tracks hands over the R label, the RS split, and no overall-open', async () => {
+  it('accept/ru-rating-tracks hands over the RO label, the RS split, and no overall-open', async () => {
     const c = suite.cases.find((x) => x.name === 'accept/ru-rating-tracks');
     if (!c) throw new Error('case accept/ru-rating-tracks is missing from the shared suite');
     const body = Uint8Array.from(Buffer.from(c.bodyHex, 'hex'));
@@ -127,15 +127,15 @@ describe('conformance: the rating-tracks snapshot', () => {
     if (!isRatingUpdatedEvent(event)) throw new Error('narrowing failed');
 
     const pb = event.data.sports?.pickleball;
-    expect(pb?.label).toBe('R');
-    expect(pb?.abbr).toBe('R');
+    expect(pb?.label).toBe('RO');
+    expect(pb?.abbr).toBe('RO');
     expect(pb?.isVairified).toBe(false);
     expect(pb?.ratingSplits?.['recreational_singles-open']).toEqual({
       rating: 3.52,
       abbr: 'RS',
       label: 'RS',
     });
-    expect(pb?.ratingSplits?.['recreational-open']?.label).toBe('R');
+    expect(pb?.ratingSplits?.['recreational-open']?.label).toBe('RO');
     expect(pb?.ratingSplits).not.toHaveProperty('recreational_gender-open');
     expect(pb?.ratingSplits).not.toHaveProperty('overall-open');
   });

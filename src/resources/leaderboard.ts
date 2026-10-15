@@ -36,7 +36,7 @@ export function resetDeprecationWarnings(): void {
  * Read-only leaderboard queries.
  *
  * Verified boards (`overall`, `gender`, `mixed`, `singles`) list only players
- * verified in the sport; the recreational boards (`recreational` / R,
+ * verified in the sport; the recreational boards (`recreational` / RO,
  * `recreational_singles` / RS) rank every player. Rank and percentile are
  * scoped to the sport.
  *

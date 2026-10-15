@@ -28,7 +28,7 @@ export const LEADERBOARD_CATEGORIES = Object.freeze([
 
 /**
  * A leaderboard `category` code: `overall` (VO), `gender` (VG), `singles`
- * (VS), `mixed` (VM), `recreational` (R), `recreational_singles` (RS).
+ * (VS), `mixed` (VM), `recreational` (RO), `recreational_singles` (RS).
  *
  * @category Leaderboards
  */
@@ -37,8 +37,8 @@ export type LeaderboardCategory = (typeof LEADERBOARD_CATEGORIES)[number];
 /**
  * The track labels the API accepts in place of a code, case-insensitively —
  * the labels the web app shows, one per track. The API still resolves the
- * legacy `S` (verified singles) and `RO` / `Rv` (the recreational chain, now
- * `R`); they are left out here so new code uses the current labels.
+ * legacy `S` (verified singles) and `R` / `Rv` (the recreational chain, now
+ * `RO`); they are left out here so new code uses the current labels.
  *
  * @category Leaderboards
  */
@@ -47,7 +47,7 @@ export const LEADERBOARD_CATEGORY_LABELS = Object.freeze([
   'VG',
   'VM',
   'VS',
-  'R',
+  'RO',
   'RS',
 ] as const);
 
@@ -89,13 +89,17 @@ export interface LeaderboardCategoryInfoWire {
 export class LeaderboardCategoryInfo {
   /** The `category` code to pass to `list()` / `rank()`. */
   readonly code: OpenEnum<LeaderboardCategory>;
-  /** Display name (`'Doubles'`, `'Singles'`, `'Recreational'`, …). */
+  /**
+   * The track's full name: `'Vairified Overall'`, `'Vairified Gender'`,
+   * `'Vairified Mixed'`, `'Vairified Singles'`, `'Recreational Overall'`,
+   * `'Recreational Singles'`.
+   */
   readonly name: string;
-  /** The label every surface shows for this track (`'VO'`, `'VS'`, `'R'`, `'RS'`). */
+  /** The label every surface shows for this track (`'VO'`, `'VS'`, `'RO'`, `'RS'`). */
   readonly label: string;
   /**
    * `true` for the verified tracks: their board lists only players verified in
-   * the sport. `false` for `R` / `RS`, whose boards rank every player.
+   * the sport. `false` for `RO` / `RS`, whose boards rank every player.
    */
   readonly verifiedOnly: boolean;
 
