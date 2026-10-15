@@ -20,8 +20,8 @@ export interface RatingSplit extends RatingSplitWire {
    * singles), e.g. `VS12-13`. The API never sends provisional or asymmetric
    * splits; `null` only when an older API leaves the label out.
    *
-   * Use this, not {@link RatingSplitWire.abbr}, when you display a label:
-   * `abbr` keeps the legacy partner code `S` for verified singles.
+   * Use this when you display a label. Since 0.9.0 {@link RatingSplitWire.abbr}
+   * matches it for the verified tracks (verified singles' `abbr` is `VS`; it was `S`).
    */
   readonly label: string | null;
 }

@@ -78,7 +78,7 @@ if (pb) {
   console.log(pb.isVairified, pb.isVairPro);    // per-sport status flags
   console.log(pb.get('overall-open')?.rating);  // 3.915
   console.log(pb.has('singles-open'));          // true
-  console.log(pb.byLabel('VS')?.abbr);          // 'S' — look up by web label
+  console.log(pb.byLabel('VS')?.abbr);          // 'VS' — look up by web label
   console.log(pb.get('recreational-open')?.label); // 'R' — for every player
   for (const [key, split] of pb) {
     console.log(key, split.rating, split.label);

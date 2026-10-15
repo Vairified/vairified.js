@@ -255,7 +255,7 @@ Reads `VAIRIFIED_ENV` from the environment when not supplied.
 
 # Migrating from 0.8.x to 0.9.0
 
-0.9.0 removes and renames nothing in the SDK. Two SDK changes can still break existing code (the first two sections), and two API behaviour changes need a look even though they compile unchanged (`Rv` is now `R`, and the leaderboard's `verifiedOnly` default).
+0.9.0 removes and renames nothing in the SDK. Two SDK changes can still break existing code (the first two sections), and three API behaviour changes need a look even though they compile unchanged (`S` is now `VS`, `Rv` is now `R`, and the leaderboard's `verifiedOnly` default).
 
 ## `SearchFilters.sortBy` only accepts the sortable fields
 
@@ -288,6 +288,17 @@ const split = member.split('overall-open');
 split.rating = 4;                       // ✗ TypeError: Cannot assign to read only property
 const edited = { ...split, rating: 4 }; // ✓ copy, then change
 ```
+
+## `S` is now `VS`
+
+Verified singles' `abbr` is `VS`, the same code the web app shows (it was `S`). The bracket suffix is unchanged: `S50+` is now `VS50+`, `S12-13` is now `VS12-13`. It applies to every split and to a sport's primary `abbr`, in `members.*`, `ratingUpdates()` and `rating.updated`. If you match on `S`, match on `VS`:
+
+```ts
+const singles = split.abbr.startsWith('S');    // ✗ never true now
+const singles = split.abbr.startsWith('VS');   // ✓ verified singles, any bracket
+```
+
+Better still, use the split key (`singles-open`, `singles-50+`) or `label`, which never changed. As a leaderboard `category`, `'S'` still resolves to `singles`.
 
 ## `Rv` is now `R`
 

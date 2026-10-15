@@ -67,7 +67,7 @@ export type Gender = 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
  */
 export interface RatingSplitWire {
   readonly rating: number;
-  /** Partner abbreviation, legacy codes kept (`VO`, `S12-13`, `R`, `RS40+`). */
+  /** Partner abbreviation (`VO`, `VS12-13`, `R`, `RS40+`); verified singles was `S` before 0.9.0. */
   readonly abbr: string;
   /**
    * The label the VAIRified web app shows for this split, bracket suffix

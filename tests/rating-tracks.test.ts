@@ -41,7 +41,7 @@ function verifiedPlayer(): PartnerMemberWire {
         label: 'VO',
         ratingSplits: {
           'overall-open': { rating: 3.915, abbr: 'VO', label: 'VO' },
-          'singles-12-13': { rating: 4.03, abbr: 'S12-13', label: 'VS12-13' },
+          'singles-12-13': { rating: 4.03, abbr: 'VS12-13', label: 'VS12-13' },
           'recreational-open': { rating: 3.8, abbr: 'R', label: 'R' },
           'recreational_singles-open': { rating: 3.6, abbr: 'RS', label: 'RS' },
           'recreational_singles-40+': { rating: 3.71, abbr: 'RS40+', label: 'RS40+' },
@@ -84,7 +84,7 @@ describe('member splits — labels and the recreational tracks', () => {
   it('exposes label on the sport and on every split', () => {
     const pb = new Member(verifiedPlayer()).sport.get('pickleball');
     expect(pb?.label).toBe('VO');
-    expect(pb?.get('singles-12-13')).toEqual({ rating: 4.03, abbr: 'S12-13', label: 'VS12-13' });
+    expect(pb?.get('singles-12-13')).toEqual({ rating: 4.03, abbr: 'VS12-13', label: 'VS12-13' });
     expect(pb?.get('asymmetric-open')?.label).toBeNull();
   });
 
@@ -108,8 +108,8 @@ describe('member splits — labels and the recreational tracks', () => {
   it('looks a split up by its web label', () => {
     const member = new Member(verifiedPlayer());
     const pb = member.sport.get('pickleball');
-    // `abbr` keeps the legacy `S`; the label is what the web app shows.
-    expect(pb?.byLabel('VS12-13')?.abbr).toBe('S12-13');
+    // Verified singles' `abbr` is `VS`, like its web label (it was `S` before 0.9.0).
+    expect(pb?.byLabel('VS12-13')?.abbr).toBe('VS12-13');
     expect(pb?.byLabel('RS40+')?.rating).toBe(3.71);
     expect(pb?.byLabel('XX')).toBeUndefined();
     // Exact match, as the API sends it.
