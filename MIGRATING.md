@@ -12,6 +12,8 @@ shows how to port existing code.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full release notes.
 
+> Upgrading from 0.8.x? See [Migrating from 0.8.x to 0.9.0](#migrating-from-08x-to-090) at the end.
+
 ## At a glance
 
 | 0.1.x                                            | 0.2.0                                                               |
@@ -41,12 +43,12 @@ All operations now live on sub-resources that mirror the REST path. The flat
 
 ```ts
 // Before
-const member = await client.getMember('vair_mem_xxx');
+const member = await client.getMember('4873327');
 const results = await client.search({ city: 'Austin' });
 await client.submitMatch(match);
 
 // After
-const member = await client.members.get('vair_mem_xxx');
+const member = await client.members.get('4873327');
 for await (const m of client.members.search({ city: 'Austin' })) { /* ... */ }
 await client.matches.submit(batch);
 ```
@@ -92,13 +94,13 @@ Fetch ratings for just the sports you care about with the `sport` filter:
 
 ```ts
 // All sports this player has ratings in
-const member = await client.members.get('vair_mem_xxx');
+const member = await client.members.get('4873327');
 
 // Just pickleball
-const member2 = await client.members.get('vair_mem_xxx', { sport: 'pickleball' });
+const member2 = await client.members.get('4873327', { sport: 'pickleball' });
 
 // Multiple sports
-const member3 = await client.members.get('vair_mem_xxx', {
+const member3 = await client.members.get('4873327', {
   sport: ['pickleball', 'padel'],
 });
 ```
@@ -250,3 +252,98 @@ await using client = new Vairified({ apiKey: 'vair_pk_xxx' });
 
 Supported environments: `"production"` (default), `"staging"`, `"local"`.
 Reads `VAIRIFIED_ENV` from the environment when not supplied.
+
+# Migrating from 0.8.x to 0.9.0
+
+0.9.0 removes and renames nothing in the SDK. Two SDK changes can still break existing code (the first two sections), and four API behaviour changes need a look even though they compile unchanged (`S` is now `VS`, `R` is now `RO`, the leaderboard's `verifiedOnly` default, and the leaderboard category names).
+
+## `SearchFilters.sortBy` only accepts the sortable fields
+
+`sortBy` is typed `PartnerSearchSortField`: `'lastName' | 'firstName' | 'memberId' | 'city' | 'state' | 'country'`. The API now refuses any other value with a 400. `'rating'` never worked: it always failed with a 500. A plain `string` variable no longer compiles:
+
+```ts
+const sortBy: string = req.query.sort; // ✗ not assignable to PartnerSearchSortField
+```
+
+Check the value against the exported list, which narrows the type:
+
+```ts
+import { PARTNER_SEARCH_SORT_FIELDS, type PartnerSearchSortField } from 'vairified';
+
+const isSortField = (v: string): v is PartnerSearchSortField =>
+  (PARTNER_SEARCH_SORT_FIELDS as readonly string[]).includes(v);
+
+const sortBy = isSortField(raw) ? raw : undefined;
+client.members.search({ sortBy });
+```
+
+Or cast it (`raw as PartnerSearchSortField`) and handle the API's 400, which surfaces as `ValidationError`.
+
+## Rating splits are frozen copies
+
+`SportRating.get()`, `values()`, `entries()`, iteration, `Member.split()` and `RatingUpdate.ratingSplits` used to return the live object from the parsed response. They now return a frozen `RatingSplit` copy with `label` always present (`null` when the API sent none). Mutating one throws a `TypeError` in strict mode, which covers every ES module:
+
+```ts
+const split = member.split('overall-open');
+split.rating = 4;                       // ✗ TypeError: Cannot assign to read only property
+const edited = { ...split, rating: 4 }; // ✓ copy, then change
+```
+
+## `S` is now `VS`
+
+Verified singles' `abbr` is `VS`, the same code the web app shows (it was `S`). The bracket suffix is unchanged: `S50+` is now `VS50+`, `S12-13` is now `VS12-13`. It applies to every split and to a sport's primary `abbr`, in `members.*`, `ratingUpdates()` and `rating.updated`. If you match on `S`, match on `VS`:
+
+```ts
+const singles = split.abbr.startsWith('S');    // ✗ never true now
+const singles = split.abbr.startsWith('VS');   // ✓ verified singles, any bracket
+```
+
+Better still, use the split key (`singles-open`, `singles-50+`) or `label`, which never changed. As a leaderboard `category`, `'S'` still resolves to `singles`.
+
+## `R` is now `RO`
+
+The recreational doubles chain is `RO` ("Recreational Overall") for every player, in `abbr` and `label` alike. Before 0.9.0 it was `R` for a player not verified in the sport and `Rv` for one verified there; neither `R` nor `Rv` is sent any more. The bracket suffix is unchanged: `R50+` is now `RO50+`. The labels the API sends are `VO`, `VG`, `VM`, `VS`, `RO` and `RS` (plus a bracket suffix such as `RS40+`).
+
+```ts
+// Before — matched the old recreational abbreviations
+const rec = split.abbr === 'R' || split.abbr === 'Rv';   // ✗ never true now
+const verified = pb.abbr === 'Rv';                        // ✗ never true now
+// After
+const rec = split.abbr.startsWith('RO');                  // ✓ any bracket
+const verified = pb.isVairified;                          // ✓ a verified VO / VG / VM / VS rating in the sport
+```
+
+Better still, use the split key (`recreational-open`, `recreational-50+`), which never changed. Also replace `byLabel('R')` / `byLabel('Rv')` with `byLabel('RO')`. As a leaderboard `category`, `'R'` and `'Rv'` still resolve to `recreational`, but `LEADERBOARD_CATEGORY_LABELS` lists `'RO'` only.
+
+## Leaderboard category names are the full track names
+
+`GET /leaderboard/categories` (`categories()`, and `name` on `categoryList()`) names the six tracks `Vairified Overall`, `Vairified Gender`, `Vairified Singles`, `Vairified Mixed`, `Recreational Overall` and `Recreational Singles`. They were `Doubles`, `Same-Gender Doubles`, `Singles`, `Mixed Doubles`, `Recreational` and `Recreational Singles`. If you matched on `name`, match on `code` instead; it never changed.
+
+## Leaderboard `verifiedOnly` no longer defaults to "unverified only"
+
+`verifiedOnly` on `leaderboard.list()` is an optional narrowing filter:
+
+| `verifiedOnly` | Before 0.9.0 | Now |
+|---|---|---|
+| unset | unverified players only | no filter — everyone |
+| `false` | unverified players only | no filter — everyone |
+| `true` | verified players only | VAIRified players only |
+
+The SDK sends it only when you set it. Verified boards (`overall`, `gender`, `mixed`, `singles`) list only verified players whatever it says; the recreational boards (`RO`, `RS`) rank everyone unless you pass `true`. There is no longer a way to list *only* unverified players; if you relied on that, filter the page yourself.
+
+```ts
+await client.leaderboard.list({ category: 'RO' });                     // everyone
+await client.leaderboard.list({ category: 'RO', verifiedOnly: true }); // VAIRified only
+```
+
+## Six leaderboard tracks
+
+`LEADERBOARD_CATEGORIES` (new) is `overall`, `gender`, `singles`, `mixed`, `recreational`, `recreational_singles`. The engine's recreational same-gender and mixed tracks are internal: the API refuses them as a `category` (`ValidationError`) and never sends their splits, so don't look for `recreational_gender-*` / `recreational_mixed-*` keys.
+
+## Behaviour to expect from the API
+
+Nothing to change in code, but don't rely on the old behaviour:
+
+- **Verified-track splits** (`overall-*`, `gender-*`, `mixed-*`, `singles-*`) are absent for a player not verified in that sport. The primary rating falls back to the recreational chain (`RO`). Check `sportRating.has(key)` before you read one.
+- **On the leaderboard**, `list()` and `categories()` now check the API key the SDK sends. An invalid key throws `AuthenticationError`, a key without `leaderboard:read` throws `PermissionDeniedError`.
+- **Deprecated leaderboard options** `clubId` (on `list` and `rank`) and `city` (on `rank`) are no longer sent and log a warning. Remove them.

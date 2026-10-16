@@ -25,7 +25,7 @@ import {
  * 2. Player approves on the Vairified site and is redirected back to
  *    your `redirectUri` with a `code` query parameter.
  * 3. {@link exchangeToken} — swap the code for access and refresh
- *    tokens plus the player's external ID.
+ *    tokens plus the player's member id (`playerId`, a string such as `'4873327'`).
  * 4. Store the refresh token and call {@link refresh} when the access
  *    token expires.
  * 5. {@link revoke} — disconnect a player from your app.

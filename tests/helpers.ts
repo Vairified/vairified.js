@@ -48,7 +48,7 @@ export function memberPayload(overrides: Partial<PartnerMemberWire> = {}): Partn
         ratingSplits: {
           'overall-open': { rating: 3.915, abbr: 'VO' },
           'gender-open': { rating: 3.88, abbr: 'VG' },
-          'singles-open': { rating: 3.71, abbr: 'S' },
+          'singles-open': { rating: 3.71, abbr: 'VS' },
         },
         isVairified: true,
         isRater: false,

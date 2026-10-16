@@ -31,6 +31,10 @@ export class MatchesResource {
    *
    * Set `batch.dryRun = true` to validate without persisting.
    *
+   * @throws {@link ScoreEntryPausedError} (HTTP 503) while Vairified has paused
+   *   score entry for maintenance. Nothing was saved; resubmit after
+   *   `err.retryAfter` seconds. The SDK does not retry for you.
+   *
    * ```ts
    * const result = await client.matches.submit({
    *   sport: 'pickleball',
@@ -42,8 +46,8 @@ export class MatchesResource {
    *   matches: [
    *     {
    *       identifier: 'm1',
-   *       teams: [['vair_mem_aaa', 'vair_mem_bbb'],
-   *               ['vair_mem_ccc', 'vair_mem_ddd']],
+   *       teams: [['4873327', '4873328'],
+   *               ['4873329', '4873330']],
    *       games: [{ scores: [11, 8] }, { scores: [11, 5] }],
    *     },
    *   ],
@@ -71,6 +75,9 @@ export class MatchesResource {
    *
    * @param body - Tournament import payload.
    * @returns {@link TournamentImportResult} with match/game counts.
+   * @throws {@link ScoreEntryPausedError} (HTTP 503) while score entry is
+   *   paused for maintenance. Nothing was imported; resubmit after
+   *   `err.retryAfter` seconds.
    * @category Matches
    *
    * @example
