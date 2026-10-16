@@ -9,6 +9,7 @@ import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 
 import {
+  type MatchBatch,
   ScoreEntryPausedError,
   ServiceUnavailableError,
   Vairified,
@@ -37,8 +38,10 @@ function pausedResponse(path: string, headers: Record<string, string> = { 'Retry
   return HttpResponse.json(pausedBody(path), { status: 503, headers });
 }
 
-const batch = {
+const batch: MatchBatch = {
   sport: 'pickleball',
+  winScore: 11,
+  winBy: 2,
   matches: [
     {
       identifier: 'm1',
