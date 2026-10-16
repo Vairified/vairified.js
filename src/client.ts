@@ -6,6 +6,7 @@
 
 import { HttpTransport } from './http.js';
 import {
+  EventsResource,
   LeaderboardResource,
   MatchesResource,
   MembersResource,
@@ -99,6 +100,11 @@ export class Vairified {
   readonly oauth: OAuthResource;
   /** Leaderboard queries — list, rank, categories. */
   readonly leaderboard: LeaderboardResource;
+  /**
+   * The event catalogue and your own listings — list, get, members, submit,
+   * withdraw. See {@link EventsResource} for the scope each needs.
+   */
+  readonly events: EventsResource;
   /** Webhook delivery inspection — deliveries. */
   readonly webhooks: WebhooksResource;
   /**
@@ -145,6 +151,7 @@ export class Vairified {
     this.matches = new MatchesResource(this.#transport);
     this.oauth = new OAuthResource(this.#transport);
     this.leaderboard = new LeaderboardResource(this.#transport);
+    this.events = new EventsResource(this.#transport);
     this.webhooks = new WebhooksResource(this.#transport);
     this.referrals = new ReferralsResource(this.#transport);
   }

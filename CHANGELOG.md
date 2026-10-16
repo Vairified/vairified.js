@@ -5,6 +5,43 @@ All notable changes to the Vairified TypeScript SDK are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`client.events` — the event catalogue, and your own listings in Vairified's events directory** ([Vairified#1320]). Five methods, one per Partner API route:
+
+  | Method | Route | Returns |
+  |---|---|---|
+  | `events.list(options?)` | `GET /partner/events` | `EventsPage` (`events`, `total`) |
+  | `events.get(eventId)` | `GET /partner/event/:eventId` | `PartnerEvent` |
+  | `events.members(eventId)` | `GET /partner/event/:eventId/members` | `EventMembersResult` |
+  | `events.submit(submission)` | `POST /partner/events` | `SubmittedEvent` (`partnerEventId`, `eventId`, `created`) |
+  | `events.withdraw(partnerEventId)` | `DELETE /partner/events/:partnerEventId` | `WithdrawnEvent` (`partnerEventId`, `eventId`, `withdrawn`) |
+
+  ```ts
+  const listing = await client.events.submit({
+    partnerEventId: 'autumn-doubles-avon',
+    sportCode: 'pickleball',
+    name: 'Autumn Doubles - Avon',
+    type: 'TOURNAMENT',
+    registrationUrl: 'https://example.com/register/autumn-doubles',
+    startDate: '2026-11-14T09:00:00-05:00',
+  });
+
+  const mine = await client.events.list({ mine: true });
+  ```
+
+  - **`list()` takes every filter the API does:** `mine`, `type`, `dateFrom`, `dateTo`, `lat`, `lng`, `radiusMiles` (at most 250), `limit` (1 to 100) and `offset`. `lat`, `lng` and `radiusMiles` go together.
+  - **`mine: true` returns only the listings your app submitted**, for reconciling your catalogue. A key holding only `key:event:submit` can use it without `key:event:read`. A listing you withdrew is not returned; one Vairified took down is, with `removed: true`, because re-sending it is refused.
+  - **Re-submitting is how you edit.** The same `partnerEventId` updates the same listing and keeps its Vairified event number. Leaving a field out keeps its current value; sending `null` clears it. `withdraw()` is reversible (submit again to restore) and idempotent (`withdrawn: false` when it was already out).
+  - **Dates must carry their time zone** — `Z` or an offset such as `-05:00` — on a submission and on the `dateFrom`/`dateTo` filters. The SDK refuses a date without one with a `ValidationError` before the request is sent.
+  - **`maxSpots` and `maxTeams` are integers from 1 to 100,000.** The API enforces this and every other field limit; apart from the date-zone check, the SDK sends the submission as given.
+  - **New model fields:** `PartnerEvent.location` (`EventLocation`, including `country` and `null` — never `0` — coordinates when un-geocoded), `winScore`, `winBy`, `createdBy` (`get` only), and, on your own listings only, `partnerEventId`, `removed`, `logoUrl` (Vairified's stored copy, `null` until stored), `logoSourceUrl` (the URL you sent), `extras` and the other fields you submitted. On anyone else's event those are `null`.
+  - **Errors use the existing types:** a refused field is a `ValidationError` (400) with the API's messages on `err.response`; an unknown event or listing is a `NotFoundError`; a missing scope, a key with no partner app, or re-sending a listing Vairified removed is a `VairifiedError` with `statusCode` 403; a concurrent-write conflict on `submit` is a `VairifiedError` with `statusCode` 409 (send it again).
+
+[Vairified#1320]: https://github.com/Vairified/Vairified/issues/1320
+
 ## [0.8.0] - 2026-09-24
 
 ### Added

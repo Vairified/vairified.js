@@ -459,6 +459,316 @@ export interface WebhookDeliveriesResultWire {
 }
 
 // ---------------------------------------------------------------------------
+// Partner events — Vairified#547, #1320
+// ---------------------------------------------------------------------------
+
+/**
+ * The kinds of event a partner may LIST with {@link EventsResource.submit}.
+ *
+ * Narrower than the types {@link EventsResource.list} can return: the
+ * catalogue also holds VAIR's own products (`RATING`, `POWRPIK`, `KASHKUP`)
+ * and the internal structure of events VAIR runs, none of which a partner
+ * listing can be.
+ *
+ * @category Events
+ */
+export type PartnerEventSubmissionType = OpenEnum<
+  'LEAGUE' | 'TOURNAMENT' | 'EVENT' | 'LADDER' | 'CLINIC' | 'SOCIAL' | 'OPEN_PLAY'
+>;
+
+/**
+ * Filters and pagination for {@link EventsResource.list}.
+ *
+ * @category Events
+ */
+export interface EventListOptions {
+  /**
+   * Only the listings YOUR app submitted with {@link EventsResource.submit}, so
+   * you can reconcile your own catalogue: match them to your events by
+   * `partnerEventId`, then submit or withdraw the difference.
+   *
+   * A listing you withdrew is not returned. A listing Vairified took down IS
+   * returned, with `removed: true` — re-sending it is refused, so skip it.
+   * Needs an API key linked to a partner app (a 400 otherwise). A key holding
+   * only `key:event:submit` may list with `mine: true` and nothing else.
+   */
+  readonly mine?: boolean;
+  /**
+   * Event type, e.g. `'TOURNAMENT'`, `'LEAGUE'`, `'OPEN_PLAY'`. Omit for every
+   * type. An unknown type is a 400, not an empty list.
+   */
+  readonly type?: string;
+  /**
+   * Only events that have not ended before this instant. An ISO 8601 date and
+   * time **with its time zone** (`2026-09-01T00:00:00Z` or an offset such as
+   * `-05:00`). A plain date, or a time with no zone, is refused with a
+   * `ValidationError` before the request is sent.
+   */
+  readonly dateFrom?: string;
+  /** Only events that have not started after this instant. Same format as `dateFrom`. */
+  readonly dateTo?: string;
+  /** Latitude of the search centre. Send `lat`, `lng` and `radiusMiles` together, or none. */
+  readonly lat?: number;
+  /** Longitude of the search centre. */
+  readonly lng?: number;
+  /**
+   * Search radius in miles, 1 to **250**. A larger radius is a 400, never
+   * quietly narrowed. An event with no coordinates is excluded from a radius
+   * search.
+   */
+  readonly radiusMiles?: number;
+  /** Results per page, 1 to 100. The API's default is 20. */
+  readonly limit?: number;
+  /** Pagination offset. */
+  readonly offset?: number;
+}
+
+/**
+ * Where an event is, as the API sends it.
+ *
+ * `latitude`/`longitude` are absent when the event has never been geocoded —
+ * never `0`, which is a real place.
+ *
+ * @category Events
+ */
+export interface PartnerEventLocationWire {
+  readonly venueName?: string;
+  readonly address?: string;
+  readonly city?: string;
+  readonly state?: string;
+  readonly zip?: string;
+  readonly country?: string;
+  readonly latitude?: number;
+  readonly longitude?: number;
+}
+
+/** An event's organising club, as the API sends it. @category Events */
+export interface PartnerEventClubWire {
+  readonly name: string;
+  readonly city?: string;
+  readonly state?: string;
+}
+
+/** The member who created an event, as the API sends it. @category Events */
+export interface PartnerEventCreatorWire {
+  readonly memberId: number;
+  readonly firstName: string;
+  readonly lastName: string;
+}
+
+/**
+ * An event, as the API sends it.
+ *
+ * Every field from `removed` down is returned **only on a listing your own app
+ * submitted**; on anyone else's event they are absent.
+ *
+ * @category Events
+ */
+export interface PartnerEventWire {
+  readonly eventId: number;
+  /** Your identifier, present only on listings YOU submitted. */
+  readonly partnerEventId?: string;
+  readonly name: string;
+  readonly type: string;
+  readonly status: string;
+  readonly sport: string;
+  readonly startDate?: string;
+  readonly endDate?: string;
+  readonly club?: PartnerEventClubWire;
+  readonly location?: PartnerEventLocationWire;
+  readonly hostName?: string;
+  readonly winScore?: number;
+  readonly winBy?: number;
+  readonly isPrivate: boolean;
+  readonly maxSpots?: number;
+  readonly maxTeams?: number;
+  /** Returned by {@link EventsResource.get} only, never by the list. */
+  readonly createdBy?: PartnerEventCreatorWire;
+  readonly createdAt: string;
+
+  // ---- your own listings only ----
+  readonly removed?: boolean;
+  readonly description?: string;
+  readonly registrationUrl?: string;
+  readonly registrationDeadline?: string;
+  readonly contactEmail?: string;
+  readonly contactPhone?: string;
+  readonly registrationFee?: number;
+  readonly playerFormat?: string;
+  readonly gender?: string;
+  readonly ratingMin?: number;
+  readonly ratingMax?: number;
+  readonly ratingType?: string;
+  readonly ratingSystem?: string;
+  readonly ageMin?: number;
+  readonly ageMax?: number;
+  readonly externalUrl?: string;
+  readonly sponsorName?: string;
+  readonly sponsorBannerUrl?: string;
+  readonly logoSourceUrl?: string;
+  readonly logoUrl?: string | null;
+  readonly extras?: Record<string, unknown>;
+}
+
+/** A page of events, as the API sends it. @category Events */
+export interface EventsPageWire {
+  readonly events: readonly PartnerEventWire[];
+  readonly total: number;
+}
+
+/** One enrolled member of an event, as the API sends it. @category Events */
+export interface PartnerEventMemberWire {
+  readonly memberId: number;
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly rating?: number;
+  readonly isVairified: boolean;
+  readonly isVairPlus: boolean;
+  readonly enrollmentStatus: string;
+  readonly isPaid: boolean;
+}
+
+/** An event's roster, as the API sends it. @category Events */
+export interface EventMembersResultWire {
+  readonly eventId: number;
+  readonly sport: string;
+  readonly members: readonly PartnerEventMemberWire[];
+}
+
+/**
+ * Where a submitted event is.
+ *
+ * Treated as ONE field on a re-submit: leave `location` out to keep the stored
+ * one, send `null` to clear it.
+ *
+ * @category Events
+ */
+export interface PartnerEventSubmissionLocation {
+  readonly address?: string | null;
+  readonly city?: string | null;
+  readonly state?: string | null;
+  readonly zip?: string | null;
+  readonly country?: string | null;
+  /**
+   * Decimal degrees. Send it WITH `longitude`, or send neither. Coordinates you
+   * send are used exactly as given; without them Vairified places the event
+   * from its address.
+   */
+  readonly latitude?: number | null;
+  readonly longitude?: number | null;
+}
+
+/**
+ * What you send to {@link EventsResource.submit}.
+ *
+ * ⛔ **Leaving a field out keeps its current value; sending `null` clears it.**
+ * An older client that does not know a newer field therefore cannot erase it
+ * by re-sending. `location` counts as one field.
+ *
+ * ⛔ **Dates are ISO 8601 date-times WITH their time zone** — `Z` or an offset
+ * such as `-05:00`. A plain date, or a time with no zone, is refused with a
+ * `ValidationError` before the request is sent.
+ *
+ * ⛔ **One submission is one place at one time.** An event at four venues is
+ * four submissions, each with its own `partnerEventId`, location and
+ * `registrationUrl`; a recurring programme is one submission per date.
+ *
+ * The SDK refuses a date with no time zone before sending; every other field
+ * limit is the API's, and the SDK does not pre-check it. Among them:
+ * `maxSpots` and `maxTeams` are integers from 1 to **100,000**, and
+ * `registrationFee` is 0 to 100,000.
+ *
+ * @category Events
+ */
+export interface PartnerEventSubmission {
+  /**
+   * YOUR identifier for this event. Submitting the same one again UPDATES the
+   * listing rather than adding a second. Unique per partner app. Letters,
+   * digits and `. _ : ~ -`, starting with a letter or digit, at most 200
+   * characters.
+   */
+  readonly partnerEventId: string;
+  /** The sport, by its Vairified code, e.g. `'pickleball'`. Required; no default. */
+  readonly sportCode: string;
+  readonly name: string;
+  readonly type: PartnerEventSubmissionType;
+  /**
+   * `'CANCELLED'` cancels the event; `'UPCOMING'` lists it (and un-cancels a
+   * cancelled one). Leave it out to keep the current status.
+   */
+  readonly status?: OpenEnum<'UPCOMING' | 'CANCELLED'> | null;
+  /** Where a player registers. Required. http or https. */
+  readonly registrationUrl: string;
+  readonly description?: string | null;
+  /** Start, with its time zone. Required on every submission and cannot be cleared. */
+  readonly startDate: string;
+  /**
+   * End, with its time zone. An event whose end has passed (with no end date,
+   * 24 hours after its start) can no longer be submitted or updated — only
+   * withdrawn.
+   */
+  readonly endDate?: string | null;
+  /** When registration closes, with its time zone. */
+  readonly registrationDeadline?: string | null;
+  /** Who runs it, when that is not your own name. */
+  readonly hostName?: string | null;
+  readonly contactEmail?: string | null;
+  readonly contactPhone?: string | null;
+  /** Entry fee in USD, 0 to 100,000. Vairified takes no payment. */
+  readonly registrationFee?: number | null;
+  /** Capacity in individual players: an integer from 1 to 100,000. */
+  readonly maxSpots?: number | null;
+  /** Capacity in teams: an integer from 1 to 100,000. */
+  readonly maxTeams?: number | null;
+  readonly playerFormat?: OpenEnum<'singles' | 'doubles' | 'mixed'> | null;
+  readonly gender?: OpenEnum<'male' | 'female' | 'mixed'> | null;
+  /** Lowest rating allowed, 2.0 to 8.0. */
+  readonly ratingMin?: number | null;
+  /** Highest rating allowed, 2.0 to 8.0. */
+  readonly ratingMax?: number | null;
+  /** Which ratings count for the range. */
+  readonly ratingType?: string | null;
+  /** Rating system the event uses, e.g. `'VAIR'`, `'DUPR'`. */
+  readonly ratingSystem?: string | null;
+  /** Youngest age allowed, 1 to 99. */
+  readonly ageMin?: number | null;
+  /** Oldest age allowed, 1 to 99. */
+  readonly ageMax?: number | null;
+  readonly winScore?: number | null;
+  readonly winBy?: number | null;
+  /** A page with more about the event. http or https. */
+  readonly externalUrl?: string | null;
+  readonly sponsorName?: string | null;
+  /** Sponsor banner image URL. http or https. */
+  readonly sponsorBannerUrl?: string | null;
+  /**
+   * The event's logo: an **https** URL to a PNG, JPEG, GIF or WebP of at most
+   * 2 MB. Vairified fetches it in the background and shows players its own
+   * stored copy; the listing is saved whether or not the logo can be used. To
+   * replace the image at the same address, send a new URL (a version in the
+   * query string is enough). `null` removes it.
+   */
+  readonly logoUrl?: string | null;
+  readonly location?: PartnerEventSubmissionLocation | null;
+  /** Free-form data of your own, returned to you and never shown to players. At most 8 KB of JSON. */
+  readonly extras?: Readonly<Record<string, unknown>> | null;
+}
+
+/** The result of a submission, as the API sends it. @category Events */
+export interface SubmittedEventWire {
+  readonly partnerEventId: string;
+  readonly eventId: number;
+  readonly created: boolean;
+}
+
+/** The result of a withdrawal, as the API sends it. @category Events */
+export interface WithdrawnEventWire {
+  readonly partnerEventId: string;
+  readonly eventId: number;
+  readonly withdrawn: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Misc
 // ---------------------------------------------------------------------------
 

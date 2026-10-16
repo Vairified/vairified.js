@@ -55,6 +55,7 @@ Every operation lives on a sub-resource that mirrors the REST path:
 | `client.members`        | `get`, `getBulk`, `getByEmail`, `search`, `find`, `ratingUpdates` |
 | `client.matches`        | `submit`, `tournamentImport`, `testWebhook`                      |
 | `client.oauth`          | `authorize`, `exchangeToken`, `refresh`, `revoke`                |
+| `client.events`         | `list`, `get`, `members`, `submit`, `withdraw`                   |
 | `client.webhooks`       | `deliveries`                                                     |
 | `client.leaderboard`    | `list`, `rank`, `categories`                                     |
 | `client.usage()`        | Rate-limit + request-count stats                                 |
@@ -411,6 +412,70 @@ for (const d of result.deliveries) {
 const ratingEvents = await client.webhooks.deliveries({ event: 'rating.updated' });
 console.log(`${ratingEvents.total} total rating.updated deliveries`);
 ```
+
+## Events
+
+Browse the event catalogue, and list your own events in Vairified's events directory.
+
+| Method | Route | Scope |
+|---|---|---|
+| `events.list(options)` | `GET /partner/events` | `key:event:read`; `key:event:submit` alone allows `mine: true` |
+| `events.get(eventId)` | `GET /partner/event/:eventId` | `key:event:read`, or `key:event:submit` for your own listings |
+| `events.members(eventId)` | `GET /partner/event/:eventId/members` | as `get` |
+| `events.submit(submission)` | `POST /partner/events` | `key:event:submit` |
+| `events.withdraw(partnerEventId)` | `DELETE /partner/events/:partnerEventId` | `key:event:submit` |
+
+### Browse the catalogue
+
+```ts
+const page = await client.events.list({
+  type: 'TOURNAMENT',
+  lat: 30.2849,
+  lng: -97.7341,
+  radiusMiles: 25,                  // at most 250
+  dateFrom: '2026-11-01T00:00:00Z', // a date and time WITH its zone
+  limit: 50,
+  offset: 0,
+});
+console.log(`${page.events.length} of ${page.total}`);
+
+const event = await client.events.get(page.events[0].eventId);
+const roster = await client.events.members(event.eventId);
+```
+
+`lat`, `lng` and `radiusMiles` go together; sending some of them is a 400. Dates must carry
+their time zone (`Z` or an offset); the SDK refuses a plain date with a `ValidationError`
+before sending the request.
+
+### List your own events
+
+```ts
+const listing = await client.events.submit({
+  partnerEventId: 'autumn-doubles-avon', // YOUR id; the same id again updates the listing
+  sportCode: 'pickleball',
+  name: 'Autumn Doubles - Avon',
+  type: 'TOURNAMENT',
+  registrationUrl: 'https://example.com/register/autumn-doubles',
+  startDate: '2026-11-14T09:00:00-05:00',
+  maxTeams: 32,                          // maxSpots / maxTeams: 1 to 100,000
+  logoUrl: 'https://example.com/logos/autumn-doubles.png',
+  location: { city: 'Avon', state: 'IN' },
+});
+console.log(listing.created ? 'listed' : 'updated', listing.eventId);
+
+// Reconcile: what have I listed?
+const mine = await client.events.list({ mine: true, limit: 100 });
+for (const e of mine.events) {
+  if (e.removed) continue; // taken down by Vairified; re-sending it is refused
+  console.log(e.partnerEventId, e.logoUrl ?? 'logo not stored yet');
+}
+
+await client.events.withdraw('autumn-doubles-avon'); // reversible: submit again to restore
+```
+
+On a re-submit, **leaving a field out keeps its current value and sending `null` clears it**.
+Cancel with `status: 'CANCELLED'`. Only your own listings carry `partnerEventId`, `removed`
+and the fields you sent; on anyone else's event they are `null`.
 
 ## OAuth Connect Flow
 
