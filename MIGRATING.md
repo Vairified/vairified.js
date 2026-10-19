@@ -255,7 +255,7 @@ Reads `VAIRIFIED_ENV` from the environment when not supplied.
 
 # Migrating from 0.8.x to 0.9.0
 
-0.9.0 removes and renames nothing in the SDK. Two SDK changes can still break existing code (the first two sections), and four API behaviour changes need a look even though they compile unchanged (`S` is now `VS`, `R` is now `RO`, the leaderboard's `verifiedOnly` default, and the leaderboard category names).
+0.9.0 removes and renames nothing in the SDK. Two SDK changes can still break existing code (the first two sections), and four API behaviour changes need a look even though they compile unchanged (`S` is now `VS`, `Rv` is no longer sent, the leaderboard's `verifiedOnly` default, and the leaderboard category names).
 
 ## `SearchFilters.sortBy` only accepts the sortable fields
 
@@ -300,24 +300,23 @@ const singles = split.abbr.startsWith('VS');   // ✓ verified singles, any brac
 
 Better still, use the split key (`singles-open`, `singles-50+`) or `label`, which never changed. As a leaderboard `category`, `'S'` still resolves to `singles`.
 
-## `R` is now `RO`
+## `Rv` is no longer sent
 
-The recreational doubles chain is `RO` ("Recreational Overall") for every player, in `abbr` and `label` alike. Before 0.9.0 it was `R` for a player not verified in the sport and `Rv` for one verified there; neither `R` nor `Rv` is sent any more. The bracket suffix is unchanged: `R50+` is now `RO50+`. The labels the API sends are `VO`, `VG`, `VM`, `VS`, `RO` and `RS` (plus a bracket suffix such as `RS40+`).
+The recreational doubles chain ("Recreational") is `R` for every player, in `abbr` and `label` alike. Before 0.9.0 it was `R` for a player not verified in the sport and `Rv` for one verified there; `Rv` is not sent any more. The bracket suffix is unchanged (`R50+`). The labels the API sends are `VO`, `VG`, `VM`, `VS`, `R` and `RS` (plus a bracket suffix such as `RS40+`).
 
 ```ts
-// Before — matched the old recreational abbreviations
-const rec = split.abbr === 'R' || split.abbr === 'Rv';   // ✗ never true now
-const verified = pb.abbr === 'Rv';                        // ✗ never true now
+// Before — told a verified player apart by the recreational abbreviation
+const verified = pb.abbr === 'Rv';      // ✗ never true now
+const unverified = pb.abbr === 'R';     // ✗ now true for verified players too
 // After
-const rec = split.abbr.startsWith('RO');                  // ✓ any bracket
-const verified = pb.isVairified;                          // ✓ a verified VO / VG / VM / VS rating in the sport
+const verified = pb.isVairified;        // ✓ a verified VO / VG / VM / VS rating in the sport
 ```
 
-Better still, use the split key (`recreational-open`, `recreational-50+`), which never changed. Also replace `byLabel('R')` / `byLabel('Rv')` with `byLabel('RO')`. As a leaderboard `category`, `'R'` and `'Rv'` still resolve to `recreational`, but `LEADERBOARD_CATEGORY_LABELS` lists `'RO'` only.
+To find the recreational chain, use the split key (`recreational-open`, `recreational-50+`), which never changed. Also replace `byLabel('Rv')` with `byLabel('R')`. As a leaderboard `category`, `'Rv'` still resolves to `recreational`, but `LEADERBOARD_CATEGORY_LABELS` lists `'R'` only.
 
 ## Leaderboard category names are the full track names
 
-`GET /leaderboard/categories` (`categories()`, and `name` on `categoryList()`) names the six tracks `Vairified Overall`, `Vairified Gender`, `Vairified Singles`, `Vairified Mixed`, `Recreational Overall` and `Recreational Singles`. They were `Doubles`, `Same-Gender Doubles`, `Singles`, `Mixed Doubles`, `Recreational` and `Recreational Singles`. If you matched on `name`, match on `code` instead; it never changed.
+`GET /leaderboard/categories` (`categories()`, and `name` on `categoryList()`) names the verified tracks `Vairified Overall`, `Vairified Gender`, `Vairified Singles` and `Vairified Mixed`. They were `Doubles`, `Same-Gender Doubles`, `Singles` and `Mixed Doubles`. The recreational tracks keep `Recreational` and `Recreational Singles`. If you matched on `name`, match on `code` instead; it never changed.
 
 ## Leaderboard `verifiedOnly` no longer defaults to "unverified only"
 
@@ -329,11 +328,11 @@ Better still, use the split key (`recreational-open`, `recreational-50+`), which
 | `false` | unverified players only | no filter — everyone |
 | `true` | verified players only | VAIRified players only |
 
-The SDK sends it only when you set it. Verified boards (`overall`, `gender`, `mixed`, `singles`) list only verified players whatever it says; the recreational boards (`RO`, `RS`) rank everyone unless you pass `true`. There is no longer a way to list *only* unverified players; if you relied on that, filter the page yourself.
+The SDK sends it only when you set it. Verified boards (`overall`, `gender`, `mixed`, `singles`) list only verified players whatever it says; the recreational boards (`R`, `RS`) rank everyone unless you pass `true`. There is no longer a way to list *only* unverified players; if you relied on that, filter the page yourself.
 
 ```ts
-await client.leaderboard.list({ category: 'RO' });                     // everyone
-await client.leaderboard.list({ category: 'RO', verifiedOnly: true }); // VAIRified only
+await client.leaderboard.list({ category: 'R' });                     // everyone
+await client.leaderboard.list({ category: 'R', verifiedOnly: true }); // VAIRified only
 ```
 
 ## Six leaderboard tracks
@@ -344,6 +343,6 @@ await client.leaderboard.list({ category: 'RO', verifiedOnly: true }); // VAIRif
 
 Nothing to change in code, but don't rely on the old behaviour:
 
-- **Verified-track splits** (`overall-*`, `gender-*`, `mixed-*`, `singles-*`) are absent for a player not verified in that sport. The primary rating falls back to the recreational chain (`RO`). Check `sportRating.has(key)` before you read one.
+- **Verified-track splits** (`overall-*`, `gender-*`, `mixed-*`, `singles-*`) are absent for a player not verified in that sport. The primary rating falls back to the recreational chain (`R`). Check `sportRating.has(key)` before you read one.
 - **On the leaderboard**, `list()` and `categories()` now check the API key the SDK sends. An invalid key throws `AuthenticationError`, a key without `leaderboard:read` throws `PermissionDeniedError`.
 - **Deprecated leaderboard options** `clubId` (on `list` and `rank`) and `city` (on `rank`) are no longer sent and log a warning. Remove them.
