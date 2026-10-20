@@ -11,7 +11,7 @@
  * await using client = new Vairified({ apiKey: 'vair_pk_xxx' });
  *
  * // Look up a connected player
- * const member = await client.members.get('vair_mem_xxx');
+ * const member = await client.members.get('4873327');
  * console.log(member.name, member.ratingFor('pickleball'));
  *
  * // Auto-paginating search
@@ -30,8 +30,8 @@
  *   matches: [
  *     {
  *       identifier: 'm1',
- *       teams: [['vair_mem_aaa', 'vair_mem_bbb'],
- *               ['vair_mem_ccc', 'vair_mem_ddd']],
+ *       teams: [['4873327', '4873328'],
+ *               ['4873329', '4873330']],
  *       games: [{ scores: [11, 8] }, { scores: [11, 5] }],
  *     },
  *   ],
@@ -53,18 +53,33 @@ export {
   AuthenticationError,
   NotFoundError,
   OAuthError,
+  PermissionDeniedError,
   RateLimitError,
+  ScoreEntryPausedError,
+  ServiceUnavailableError,
   VairifiedError,
   ValidationError,
   WebhookSignatureError,
 } from './errors.js';
 // ---- Response models ----
+export type {
+  LeaderboardCategory,
+  LeaderboardCategoryInfoWire,
+  LeaderboardCategoryInput,
+  LeaderboardCategoryLabel,
+  PartnerSearchSortField,
+  RatingSplit,
+} from './models/index.js';
 export {
+  LEADERBOARD_CATEGORIES,
+  LEADERBOARD_CATEGORY_LABELS,
+  LeaderboardCategoryInfo,
   MatchBatchResult,
   Member,
   MemberEmailMatch,
   MemberSportMap,
   MembersByEmailResult,
+  PARTNER_SEARCH_SORT_FIELDS,
   RatingUpdate,
   SportRating,
   TournamentImportResult,

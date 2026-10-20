@@ -9,6 +9,9 @@
  * @module
  */
 
+import type { LeaderboardCategoryInput } from './models/leaderboard-category.js';
+import type { PartnerSearchSortField } from './models/partner-search-sort.js';
+
 // ---------------------------------------------------------------------------
 // Client options
 // ---------------------------------------------------------------------------
@@ -64,7 +67,15 @@ export type Gender = 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
  */
 export interface RatingSplitWire {
   readonly rating: number;
+  /** Partner abbreviation (`VO`, `VS12-13`, `RD`, `RS40+`); before 0.9.0 verified singles was `S` and the recreational doubles chain `R` (`Rv` for a verified player). */
   readonly abbr: string;
+  /**
+   * The label the VAIRified web app shows for this split, bracket suffix
+   * included (`VO`, `VS12-13`, `RD`, `RS40+`), or `null` for a track the
+   * web app does not show. Optional on the wire only because older API
+   * releases omit it; the SDK models always carry it (see {@link RatingSplit}).
+   */
+  readonly label?: string | null;
 }
 
 /**
@@ -75,6 +86,8 @@ export interface RatingSplitWire {
 export interface SportRatingWire {
   readonly rating: number;
   readonly abbr: string;
+  /** The web app's label for the primary rating; see {@link RatingSplitWire.label}. */
+  readonly label?: string | null;
   readonly ratingSplits: Readonly<Record<string, RatingSplitWire>>;
   // Per-sport status (Vairified#783). VAIRification and VAIR-Pro certs are
   // sport-scoped, so these live on each sport rather than the member `status`.
@@ -237,7 +250,12 @@ export interface SearchFilters {
   ageMin?: number;
   /** Upper age bound. */
   ageMax?: number;
-  sortBy?: string;
+  /**
+   * Field to sort by, sent as `sortField`. Default (omitted): `lastName`,
+   * ascending. Any other value is refused by the API with a 400
+   * ({@link ValidationError}).
+   */
+  sortBy?: PartnerSearchSortField;
   sortOrder?: 'asc' | 'desc';
   /** Page size requested per HTTP request (server cap 100). Default 20. */
   pageSize?: number;
@@ -367,13 +385,31 @@ export interface MatchBatchResultWire {
  * @category Leaderboards
  */
 export interface LeaderboardOptions {
-  readonly category?: string;
+  /** A category code (`'singles'`) or its label (`'VS'`, any case). Default `'overall'`. */
+  readonly category?: LeaderboardCategoryInput;
   readonly ageBracket?: string;
   readonly scope?: string;
   readonly state?: string;
   readonly city?: string;
+  /**
+   * @deprecated The API has no club filter on `GET /leaderboard` and refuses
+   * the field with a 400. Accepted for compatibility, never sent, and logged
+   * once with `console.warn`. Will be removed in a future release.
+   */
   readonly clubId?: string;
+  /**
+   * Sport code (`'pickleball'`, `'padel'`), sent as `sportCode`. Rank and
+   * percentile are per sport, so set this whenever the player plays more than
+   * one sport.
+   */
+  readonly sportCode?: string;
   readonly gender?: Gender | Lowercase<Gender>;
+  /**
+   * Optional narrowing filter, sent only when set. `true` lists only players
+   * VAIRified in the sport; `false` or unset applies no filter. (Before 0.9.0
+   * the API read an unset or `false` value as "unverified players only".)
+   * Verified boards list only verified players whatever this says.
+   */
   readonly verifiedOnly?: boolean;
   readonly minGames?: number;
   readonly limit?: number;
@@ -387,14 +423,27 @@ export interface LeaderboardOptions {
  * @category Leaderboards
  */
 export interface PlayerRankOptions {
-  readonly category?: string;
+  /** A category code (`'singles'`) or its label (`'VS'`, any case). Default `'overall'`. */
+  readonly category?: LeaderboardCategoryInput;
   readonly ageBracket?: string;
   readonly scope?: string;
   readonly state?: string;
+  /**
+   * @deprecated `POST /leaderboard/rank` has no city filter and refuses the
+   * field with a 400. Accepted for compatibility, never sent, and logged once
+   * with `console.warn`. Will be removed in a future release.
+   */
   readonly city?: string;
+  /**
+   * @deprecated `POST /leaderboard/rank` has no club filter and refuses the
+   * field with a 400. Accepted for compatibility, never sent, and logged once
+   * with `console.warn`. Will be removed in a future release.
+   */
   readonly clubId?: string;
-  /** Number of players on either side of the target. Default 5. */
+  /** Number of players on either side of the target (0–25), sent as `context`. Default 5. */
   readonly contextSize?: number;
+  /** Sport code, sent as `sportCode`. Rank and percentile are per sport. */
+  readonly sportCode?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -471,6 +520,10 @@ export interface ApiErrorResponse {
   readonly message?: string;
   readonly error?: string;
   readonly statusCode?: number;
+  /** Machine-readable error code, when the API sends one (e.g. `'SCORE_ENTRY_PAUSED'`). */
+  readonly code?: string;
+  /** Seconds to wait before retrying, on refusals that say so (mirrors `Retry-After`). */
+  readonly retryAfter?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -632,6 +685,8 @@ export interface ConnectionRevokedEventWire extends WebhookEventEnvelopeWire {
 export interface RatingUpdatedSportWire {
   readonly rating?: number;
   readonly abbr?: string;
+  /** The web app's label for the primary rating (`VO`, `RD`, …) or `null`. */
+  readonly label?: string | null;
   readonly ratingSplits?: Readonly<Record<string, RatingSplitWire>>;
   readonly isVairified?: boolean;
   readonly isRater?: boolean;

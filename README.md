@@ -39,7 +39,7 @@ import { Vairified } from 'vairified';
 
 await using client = new Vairified({ apiKey: 'vair_pk_xxx' });
 
-const member = await client.members.get('vair_mem_xxx');
+const member = await client.members.get('4873327');
 console.log(member.name, 'rated', member.ratingFor('pickleball'));
 ```
 
@@ -56,7 +56,7 @@ Every operation lives on a sub-resource that mirrors the REST path:
 | `client.matches`        | `submit`, `tournamentImport`, `testWebhook`                      |
 | `client.oauth`          | `authorize`, `exchangeToken`, `refresh`, `revoke`                |
 | `client.webhooks`       | `deliveries`                                                     |
-| `client.leaderboard`    | `list`, `rank`, `categories`                                     |
+| `client.leaderboard`    | `list`, `rank`, `categories`, `categoryList`                     |
 | `client.usage()`        | Rate-limit + request-count stats                                 |
 
 ## Members
@@ -64,7 +64,7 @@ Every operation lives on a sub-resource that mirrors the REST path:
 ### Get a connected member
 
 ```ts
-const member = await client.members.get('vair_mem_xxx');
+const member = await client.members.get('4873327');
 
 console.log(member.name);                      // Full name
 console.log(member.displayName);                // "Mike B."
@@ -74,15 +74,22 @@ console.log(member.sport.get('pickleball')?.isVairified);   // true (per-sport)
 // Dict-like access to rating splits for a specific sport
 const pb = member.sport.get('pickleball');
 if (pb) {
-  console.log(pb.rating, pb.abbr);              // 3.915 VO
+  console.log(pb.rating, pb.abbr, pb.label);    // 3.915 VO VO
   console.log(pb.isVairified, pb.isVairPro);    // per-sport status flags
   console.log(pb.get('overall-open')?.rating);  // 3.915
   console.log(pb.has('singles-open'));          // true
+  console.log(pb.byLabel('VS')?.abbr);          // 'VS' — look up by web label
+  console.log(pb.get('recreational-open')?.label); // 'RD' — for every player
   for (const [key, split] of pb) {
-    console.log(key, split.rating);
+    console.log(key, split.rating, split.label);
   }
 }
 ```
+
+Verified-track splits (`overall-*`, `gender-*`, `mixed-*`, `singles-*`) are sent
+only for a player verified in that sport. For anyone else they are absent, and
+the primary `rating` / `abbr` is the recreational chain (`RD`). Check
+`pb.has(key)` rather than assuming a key exists.
 
 ### Bulk member lookup
 
@@ -132,10 +139,10 @@ account: unclaimed imported records are excluded from this lookup.
 
 ```ts
 // Just pickleball
-const member = await client.members.get('vair_mem_xxx', { sport: 'pickleball' });
+const member = await client.members.get('4873327', { sport: 'pickleball' });
 
 // Multiple sports
-const member2 = await client.members.get('vair_mem_xxx', {
+const member2 = await client.members.get('4873327', {
   sport: ['pickleball', 'padel'],
 });
 ```
@@ -200,14 +207,14 @@ const result = await client.matches.submit({
     {
       identifier: 'm1',
       teams: [
-        ['vair_mem_aaa', 'vair_mem_bbb'],
-        ['vair_mem_ccc', 'vair_mem_ddd'],
+        ['4873327', '4873328'],
+        ['4873329', '4873330'],
       ],
       games: [{ scores: [11, 8] }, { scores: [11, 5] }],
     },
     {
       identifier: 'm2',
-      teams: [['vair_mem_eee'], ['vair_mem_fff']],   // singles
+      teams: [['4873331'], ['4873332']],   // singles
       games: [{ scores: [11, 9] }, { scores: [11, 7] }],
     },
   ],
@@ -474,24 +481,43 @@ const bad: OAuthScope[] = ['user:profile:read', 'rating']; // type error
 // Global leaderboard
 const lb = await client.leaderboard.list();
 
-// Texas singles, verified only
+// Texas singles (a verified board: verified players only)
 const tx = await client.leaderboard.list({
-  category: 'singles',
+  category: 'singles', // or the label 'VS'; see LEADERBOARD_CATEGORIES
   scope: 'state',
   state: 'TX',
-  verifiedOnly: true,
   limit: 50,
 });
 
 // A specific player's rank with 5 players on either side
-const rank = await client.leaderboard.rank('vair_mem_xxx', {
-  category: 'doubles',
+const rank = await client.leaderboard.rank('4873327', {
+  sportCode: 'pickleball', // rank and percentile are per sport
+  category: 'overall',
   contextSize: 5,
 });
 
-// Available categories, brackets, scopes
+// The recreational board (label 'RD') ranks everyone; verifiedOnly narrows it
+// to VAIRified players. Leave verifiedOnly unset for no filter.
+const rec = await client.leaderboard.list({ category: 'RD' });
+const recVerified = await client.leaderboard.list({ category: 'RD', verifiedOnly: true });
+
+// The six tracks as typed models
+for (const track of await client.leaderboard.categoryList()) {
+  console.log(track.code, track.label, track.name, track.verifiedOnly); // recreational RD Recreational Doubles false
+}
+
+// Raw categories, brackets, scopes, rating tiers
 const categories = await client.leaderboard.categories();
 ```
+
+Tracks: `overall` (VO), `gender` (VG), `singles` (VS), `mixed` (VM) are verified
+boards and list only players verified in the sport; `recreational` (R) and
+`recreational_singles` (RS) are recreational boards and rank every player.
+`verifiedOnly` is an optional filter, sent only when you set it: `true` lists only
+VAIRified players, unset or `false` applies no filter. Rank and percentile are scoped
+to the sport. The leaderboard routes are public, but the key the SDK sends is
+checked: an invalid or revoked key throws `AuthenticationError`, a key without
+`leaderboard:read` throws `PermissionDeniedError`.
 
 ## Configuration
 
@@ -587,30 +613,59 @@ the backend returns only the resulting access token (or a session) to the app.
 The SDK maps HTTP status codes to typed exceptions. All typed exceptions inherit from
 `VairifiedError`, so a single `catch` can handle everything.
 
+| Status | Error | Means |
+|---|---|---|
+| 400 | `ValidationError` | Bad request, invalid input |
+| 401 | `AuthenticationError` | Invalid or missing API key |
+| 403 | `PermissionDeniedError` | Missing scope, or the player has not connected |
+| 404 | `NotFoundError` | Resource not found |
+| 429 | `RateLimitError` | Rate limit exceeded; `retryAfter` seconds |
+| 503 + code `SCORE_ENTRY_PAUSED` | `ScoreEntryPausedError` | Score entry is paused for maintenance; `retryAfter` seconds |
+| 503 | `ServiceUnavailableError` | Temporarily unavailable; `retryAfter` seconds when the server says |
+| other | `VairifiedError` | Any other failure; check `statusCode` |
+| — | `OAuthError` | OAuth-specific failure; `errorCode` |
+
+`ScoreEntryPausedError` extends `ServiceUnavailableError`. During a rating maintenance
+window Vairified pauses score entry: `matches.submit()` and `matches.tournamentImport()`
+throw it, while reads keep working. Nothing was saved, so resubmit the same payload later.
+
+**The SDK never retries a request on its own**, for any status. If you retry a 429 or a
+503, wait at least `err.retryAfter` seconds (the score-entry pause asks for 300) and cap the
+number of attempts; retrying in a tight loop only adds load to a service that has said no.
+
 ```ts
 import {
   Vairified,
   VairifiedError,
   RateLimitError,
   AuthenticationError,
+  PermissionDeniedError,
   NotFoundError,
   ValidationError,
   OAuthError,
+  ScoreEntryPausedError,
+  ServiceUnavailableError,
 } from 'vairified';
 
 try {
-  const member = await client.members.get('vair_mem_xxx');
+  const member = await client.members.get('4873327');
 } catch (err) {
   if (err instanceof RateLimitError) {
     console.log(`Rate limited; retry after ${err.retryAfter}s`);
   } else if (err instanceof AuthenticationError) {
     console.log('Invalid API key');
+  } else if (err instanceof PermissionDeniedError) {
+    console.log('Key lacks the scope, or the player has not connected');
   } else if (err instanceof NotFoundError) {
     console.log('Member not found');
   } else if (err instanceof ValidationError) {
     console.log(`Bad request: ${err.message}`);
   } else if (err instanceof OAuthError) {
     console.log(`OAuth error: ${err.message} (code: ${err.errorCode})`);
+  } else if (err instanceof ScoreEntryPausedError) {
+    console.log(`Score entry paused; resubmit in ${err.retryAfter ?? 300}s`);
+  } else if (err instanceof ServiceUnavailableError) {
+    console.log(`Service unavailable; retry after ${err.retryAfter}s`);
   } else if (err instanceof VairifiedError) {
     console.log(`API error: ${err.message} (status: ${err.statusCode})`);
   } else {
@@ -642,7 +697,8 @@ member.status.isConnected
 member.sport                      // MemberSportMap
 member.sports                     // readonly string[] of sport codes
 member.ratingFor('pickleball')    // number | null
-member.split('overall-open')      // RatingSplitWire | null
+member.split('overall-open')      // RatingSplit | null
+member.splitByLabel('VS')         // RatingSplit | null, by web label
 ```
 
 VAIRification & VAIR-Pro status are **per-sport** — read them off each
@@ -653,12 +709,14 @@ VAIRification & VAIR-Pro status are **per-sport** — read them off each
 ```ts
 const pb = member.sport.get('pickleball');
 pb?.rating              // Primary rating for this sport
-pb?.abbr                // "VO", "VG", etc.
+pb?.abbr                // "VO", "RD", etc. (partner codes)
+pb?.label               // "VO", "RD" — the web app's label, or null
 pb?.isVairified         // per-sport VAIRified flag (Vairified#783)
 pb?.isRater             // per-sport rater flag
 pb?.isVairPro           // per-sport VAIR-Pro flag
 pb?.isVairProStatus     // 'PENDING' | 'ACTIVE' | null
-pb?.get('overall-open') // Any split key
+pb?.get('overall-open') // Any split key — { rating, abbr, label }
+pb?.byLabel('RS')       // RatingSplit | undefined, by web label
 pb?.size                // Number of splits
 pb?.has('singles-40+')  // Membership check
 for (const [key, split] of pb ?? []) { /* iterate */ }
