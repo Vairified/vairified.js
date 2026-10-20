@@ -15,14 +15,14 @@ import type { RatingSplitWire, SportRatingWire, VairProStatus } from '../types.j
 export interface RatingSplit extends RatingSplitWire {
   /**
    * The label the VAIRified web app shows for this split, bracket suffix
-   * included — `VO`, `VG`, `VM`, `VS` (verified tracks), `R` (the
-   * recreational doubles chain, "Recreational", for every player) and `RS` (recreational
-   * singles), e.g. `VS12-13`. The API never sends provisional or asymmetric
+   * included — `VO`, `VG`, `VM`, `VS` (verified tracks), `RD` (the
+   * recreational doubles chain, "Recreational Doubles", for every player) and `RS`
+   * (recreational singles), e.g. `VS12-13`. The API never sends provisional or asymmetric
    * splits; `null` only when an older API leaves the label out.
    *
    * Use this when you display a label. Since 0.9.0 {@link RatingSplitWire.abbr}
    * matches it on all six tracks (verified singles is `VS`, it was `S`; the
-   * recreational chain is `R` for every player, `Rv` is no longer sent).
+   * recreational chain is `RD` for every player; it was `R`, and `Rv` for a verified player).
    */
   readonly label: string | null;
 }
@@ -42,7 +42,7 @@ export function toRatingSplit(wire: RatingSplitWire): RatingSplit {
  *
  * The top-level `rating` / `abbr` is the primary rating for that sport:
  * the verified overall-open rating (`VO`) for a player verified in the
- * sport, otherwise the recreational chain (`R`). Every category × age
+ * sport, otherwise the recreational chain (`RD`). Every category × age
  * bracket the API sends is also available via {@link get}, {@link has},
  * {@link byLabel}, and iteration.
  *
@@ -70,10 +70,10 @@ export function toRatingSplit(wire: RatingSplitWire): RatingSplit {
 export class SportRating {
   /** Primary rating for this sport. */
   readonly rating: number;
-  /** Category abbreviation for the primary rating (e.g. `'VO'`, `'R'`). */
+  /** Category abbreviation for the primary rating (e.g. `'VO'`, `'RD'`). */
   readonly abbr: string;
   /**
-   * The web app's label for the primary rating (`'VO'`, `'R'`), or
+   * The web app's label for the primary rating (`'VO'`, `'RD'`), or
    * `null` when the API sent none. See {@link RatingSplit.label}.
    */
   readonly label: string | null;
@@ -114,7 +114,7 @@ export class SportRating {
 
   /**
    * Look up a rating split by the label the web app shows, bracket suffix
-   * included (e.g. `'VS'`, `'VO40+'`, `'RS12-13'`, `'R'`). Matches
+   * included (e.g. `'VS'`, `'VO40+'`, `'RS12-13'`, `'RD'`). Matches
    * {@link RatingSplit.label} exactly, as the API sends it. Returns
    * `undefined` when no split carries that label.
    */

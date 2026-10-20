@@ -79,7 +79,7 @@ if (pb) {
   console.log(pb.get('overall-open')?.rating);  // 3.915
   console.log(pb.has('singles-open'));          // true
   console.log(pb.byLabel('VS')?.abbr);          // 'VS' — look up by web label
-  console.log(pb.get('recreational-open')?.label); // 'R' — for every player
+  console.log(pb.get('recreational-open')?.label); // 'RD' — for every player
   for (const [key, split] of pb) {
     console.log(key, split.rating, split.label);
   }
@@ -88,7 +88,7 @@ if (pb) {
 
 Verified-track splits (`overall-*`, `gender-*`, `mixed-*`, `singles-*`) are sent
 only for a player verified in that sport. For anyone else they are absent, and
-the primary `rating` / `abbr` is the recreational chain (`R`). Check
+the primary `rating` / `abbr` is the recreational chain (`RD`). Check
 `pb.has(key)` rather than assuming a key exists.
 
 ### Bulk member lookup
@@ -496,14 +496,14 @@ const rank = await client.leaderboard.rank('4873327', {
   contextSize: 5,
 });
 
-// The recreational board (label 'R') ranks everyone; verifiedOnly narrows it
+// The recreational board (label 'RD') ranks everyone; verifiedOnly narrows it
 // to VAIRified players. Leave verifiedOnly unset for no filter.
-const rec = await client.leaderboard.list({ category: 'R' });
-const recVerified = await client.leaderboard.list({ category: 'R', verifiedOnly: true });
+const rec = await client.leaderboard.list({ category: 'RD' });
+const recVerified = await client.leaderboard.list({ category: 'RD', verifiedOnly: true });
 
 // The six tracks as typed models
 for (const track of await client.leaderboard.categoryList()) {
-  console.log(track.code, track.label, track.name, track.verifiedOnly); // recreational R Recreational false
+  console.log(track.code, track.label, track.name, track.verifiedOnly); // recreational RD Recreational Doubles false
 }
 
 // Raw categories, brackets, scopes, rating tiers
@@ -709,8 +709,8 @@ VAIRification & VAIR-Pro status are **per-sport** — read them off each
 ```ts
 const pb = member.sport.get('pickleball');
 pb?.rating              // Primary rating for this sport
-pb?.abbr                // "VO", "R", etc. (partner codes)
-pb?.label               // "VO", "R" — the web app's label, or null
+pb?.abbr                // "VO", "RD", etc. (partner codes)
+pb?.label               // "VO", "RD" — the web app's label, or null
 pb?.isVairified         // per-sport VAIRified flag (Vairified#783)
 pb?.isRater             // per-sport rater flag
 pb?.isVairPro           // per-sport VAIR-Pro flag

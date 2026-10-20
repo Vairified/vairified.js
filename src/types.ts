@@ -67,11 +67,11 @@ export type Gender = 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
  */
 export interface RatingSplitWire {
   readonly rating: number;
-  /** Partner abbreviation (`VO`, `VS12-13`, `R`, `RS40+`); before 0.9.0 verified singles was `S` and a verified player's recreational chain `Rv`. */
+  /** Partner abbreviation (`VO`, `VS12-13`, `RD`, `RS40+`); before 0.9.0 verified singles was `S` and the recreational doubles chain `R` (`Rv` for a verified player). */
   readonly abbr: string;
   /**
    * The label the VAIRified web app shows for this split, bracket suffix
-   * included (`VO`, `VS12-13`, `R`, `RS40+`), or `null` for a track the
+   * included (`VO`, `VS12-13`, `RD`, `RS40+`), or `null` for a track the
    * web app does not show. Optional on the wire only because older API
    * releases omit it; the SDK models always carry it (see {@link RatingSplit}).
    */
@@ -685,7 +685,7 @@ export interface ConnectionRevokedEventWire extends WebhookEventEnvelopeWire {
 export interface RatingUpdatedSportWire {
   readonly rating?: number;
   readonly abbr?: string;
-  /** The web app's label for the primary rating (`VO`, `R`, …) or `null`. */
+  /** The web app's label for the primary rating (`VO`, `RD`, …) or `null`. */
   readonly label?: string | null;
   readonly ratingSplits?: Readonly<Record<string, RatingSplitWire>>;
   readonly isVairified?: boolean;
