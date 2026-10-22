@@ -14,6 +14,7 @@ import {
   dedupeKey,
   isConnectionRevokedEvent,
   isEventCreatedEvent,
+  isEventRegistrationEvent,
   isMemberStatusEvent,
   isNewerSequence,
   isRatingUpdatedEvent,
@@ -654,6 +655,61 @@ describe('verifyWebhook — all four event types are typed', () => {
     // The shadowing pair: envelope id is the DELIVERY, data id is the EVENT.
     expect(event.eventId).toBe('evt_envelope');
     expect(event.data.eventId).toBe(55123);
+  });
+
+  it('types event.registration, and its numeric eventId is not the envelope id', async () => {
+    const body = JSON.stringify({
+      event: 'event.registration',
+      eventId: 'evt_0b6f3f0e-6f4c-4d7d-9a7e-2f1b9b0a1c55',
+      timestamp: '2026-10-20T15:02:02.721Z',
+      data: {
+        eventId: 70214,
+        partnerEventId: 'summer-open-2026',
+        memberId: 4873327,
+        action: 'signed_up',
+        source: 'player',
+        changedAt: '2026-10-20T15:02:02.721Z',
+        firstName: 'Ann',
+        lastName: 'Lee',
+        isVairified: true,
+        isVairPlus: false,
+        rating: 4.256,
+      },
+    });
+    const event = await verifyWebhook(body, sign(body, GOLDEN.secret, NOW), GOLDEN.secret, at());
+    expect(isEventCreatedEvent(event)).toBe(false);
+    if (!isEventRegistrationEvent(event)) throw new Error('narrowing failed');
+    expect(event.eventId).toBe('evt_0b6f3f0e-6f4c-4d7d-9a7e-2f1b9b0a1c55');
+    expect(event.data.eventId).toBe(70214);
+    expect(event.data.partnerEventId).toBe('summer-open-2026');
+    expect(event.data.memberId).toBe(4873327);
+    expect(event.data.action).toBe('signed_up');
+    expect(event.data.source).toBe('player');
+    expect(event.data.firstName).toBe('Ann');
+    expect(event.data.rating).toBe(4.256);
+  });
+
+  it('accepts an event.registration about a disconnected member: number, action and source only', async () => {
+    const body = JSON.stringify({
+      event: 'event.registration',
+      eventId: 'evt_disconnected',
+      timestamp: '2026-10-20T15:02:02.721Z',
+      data: {
+        eventId: 70214,
+        partnerEventId: 'summer-open-2026',
+        memberId: 4873399,
+        action: 'cancelled',
+        source: 'staff',
+        changedAt: '2026-10-20T15:02:02.721Z',
+      },
+    });
+    const event = await verifyWebhook(body, sign(body, GOLDEN.secret, NOW), GOLDEN.secret, at());
+    if (!isEventRegistrationEvent(event)) throw new Error('narrowing failed');
+    expect(event.data.action).toBe('cancelled');
+    expect(event.data.source).toBe('staff');
+    expect(event.data.firstName).toBeUndefined();
+    expect(event.data.isVairPlus).toBeUndefined();
+    expect(event.data.rating).toBeUndefined();
   });
 });
 

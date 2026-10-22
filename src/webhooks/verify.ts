@@ -12,6 +12,7 @@ import { WebhookSignatureError } from '../errors.js';
 import type {
   ConnectionRevokedEventWire,
   EventCreatedEventWire,
+  EventRegistrationEventWire,
   MemberStatusEventWire,
   RatingUpdatedEventWire,
   VerifiedWebhookEvent,
@@ -170,7 +171,8 @@ function assertEnvelope(value: unknown): asserts value is VerifiedWebhookEvent {
  * - every event: `event`, `eventId`, `timestamp` (checked by the envelope guard)
  * - `member.status`: `memberId`, `isVairPlus`, `isAmbassador`
  * - `rating.updated`: `memberId`, `sequence`
- * - `connection.revoked`, `event.created`: nothing beyond the envelope
+ * - `connection.revoked`, `event.created`, `event.registration`: nothing beyond
+ *   the envelope
  *
  * Everything else is handed over exactly as it arrived — including anything
  * nested, at any depth.
@@ -510,6 +512,34 @@ export function isRatingUpdatedEvent(event: VerifiedWebhookEvent): event is Rati
  */
 export function isEventCreatedEvent(event: VerifiedWebhookEvent): event is EventCreatedEventWire {
   return event.event === 'event.created';
+}
+
+/**
+ * Narrow a verified event to `event.registration` — a player signed up for, or
+ * a pending sign-up was cancelled on, one of your listings on Vairified.
+ *
+ * :warning: `data.eventId` is your listing's **number** and is not the
+ * envelope's string `eventId`. Deduplicate on the envelope's.
+ *
+ * :warning: `data.action` (`signed_up`, `cancelled`) and `data.source`
+ * (`player`, `staff`) are open sets: never branch on them exhaustively. The
+ * profile fields are absent for a member who has not allowed you them, and for
+ * one who disconnected your app.
+ *
+ * @example
+ * ```ts
+ * if (isEventRegistrationEvent(event)) {
+ *   const { eventId, memberId, action } = event.data;
+ *   if (action === 'signed_up') holdPlace(eventId, memberId); // pending until your list names them
+ * }
+ * ```
+ *
+ * @category Webhooks
+ */
+export function isEventRegistrationEvent(
+  event: VerifiedWebhookEvent,
+): event is EventRegistrationEventWire {
+  return event.event === 'event.registration';
 }
 
 // ---------------------------------------------------------------------------

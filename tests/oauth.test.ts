@@ -37,6 +37,14 @@ describe('oauth helpers', () => {
     expect(describeScope('user:profile:read').toLowerCase()).toContain('verification');
   });
 
+  it('knows the events permission, with the description the API shows members', () => {
+    expect(validateScope('user:event:register')).toBe(true);
+    expect(SCOPES['user:event:register']).toBe(
+      "Show you as registered for this partner's events on VAIR, and tell the partner when you sign up for or cancel one of its events on VAIR",
+    );
+    expect(describeScope('user:event:register')).not.toContain('Unknown scope');
+  });
+
   it('flags unknown scopes in describeScope', () => {
     expect(describeScope('foo:bar')).toContain('Unknown scope');
     expect(describeScope('foo:bar')).toContain('foo:bar');

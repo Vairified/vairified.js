@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`client.events` — the event catalogue, and your own listings in Vairified's events directory** ([Vairified#1320]). Five methods, one per Partner API route:
+- **`client.events` — the event catalogue, and your own listings in Vairified's events directory** ([Vairified#1320]). Six methods, one per Partner API route:
 
   | Method | Route | Returns |
   |---|---|---|
@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   | `events.members(eventId)` | `GET /partner/event/:eventId/members` | `EventMembersResult` |
   | `events.submit(submission)` | `POST /partner/events` | `SubmittedEvent` (`partnerEventId`, `eventId`, `created`) |
   | `events.withdraw(partnerEventId)` | `DELETE /partner/events/:partnerEventId` | `WithdrawnEvent` (`partnerEventId`, `eventId`, `withdrawn`) |
+  | `events.setMembers(partnerEventId, memberIds)` | `PUT /partner/events/:partnerEventId/members` | `EventRosterResult` (`partnerEventId`, `eventId`, `added`, `confirmed`, `unchanged`, `removed`, `refused`) |
 
   ```ts
   const listing = await client.events.submit({
@@ -27,15 +28,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     type: 'TOURNAMENT',
     registrationUrl: 'https://example.com/register/autumn-doubles',
     startDate: '2026-11-14T09:00:00-05:00',
+    endDate: '2026-11-15T17:00:00-05:00',
   });
 
   const mine = await client.events.list({ mine: true });
+
+  const synced = await client.events.setMembers('autumn-doubles-avon', [4873327, 4873330]);
   ```
 
   - **`list()` takes every filter the API does:** `mine`, `type`, `dateFrom`, `dateTo`, `lat`, `lng`, `radiusMiles` (at most 250), `limit` (1 to 100) and `offset`. `lat`, `lng` and `radiusMiles` go together.
   - **`mine: true` returns only the listings your app submitted**, for reconciling your catalogue. A key holding only `key:event:submit` can use it without `key:event:read`. A listing you withdrew is not returned; one Vairified took down is, with `removed: true`, because re-sending it is refused.
   - **Re-submitting is how you edit.** The same `partnerEventId` updates the same listing and keeps its Vairified event number. Leaving a field out keeps its current value; sending `null` clears it. `withdraw()` is reversible (submit again to restore) and idempotent (`withdrawn: false` when it was already out).
   - **Dates must carry their time zone** — `Z` or an offset such as `-05:00` — on a submission and on the `dateFrom`/`dateTo` filters. The SDK refuses a date without one with a `ValidationError` before the request is sent.
+  - **`startDate` and `endDate` are both required on a submission**, and neither can be cleared (`PartnerEventSubmission.endDate` is `string`, no longer optional or nullable). A listing sent without an end date is refused by the API (400, a `ValidationError`) with a message saying the end date is required. An event whose end has passed can no longer be submitted or updated.
+  - **`setMembers()` sends your WHOLE confirmed list for one listing**, by member number. A member confirmed before and missing now is cancelled; an empty list clears the roster; the same list again changes nothing; at most 2000 numbers. Members who signed up on Vairified and are waiting for you are confirmed when the list includes them. Anyone your app may not list comes back in `refused` as an `EventRosterRefusal` (`memberId`, `reason`, `message`), with `reason` one of `UNKNOWN_MEMBER`, `NO_EVENTS_PERMISSION` or `DISCONNECTED` (an open set, typed `EventRosterRefusalReason`); everyone else is still applied. A withdrawn or cancelled listing is a `VairifiedError` with `statusCode` 409.
+  - **The roster read shows sign-ups on your own listings.** `EventMember` gains `source` (`PARTNER_LIST`, `VAIR_SIGNUP` or `STAFF_ADD`; type `EventMemberSource`) and `lapsed`, both `null` on anyone else's event; `enrollmentStatus` `PENDING` on your own listing means the member is waiting for you. `firstName`, `lastName`, `isVairified` and `isVairPlus` are now `null` (rather than always present) for a member who has not allowed you their profile or who disconnected your app, who comes back as member number and status only.
+  - **`event.registration` webhook**, reached through `isEventRegistrationEvent()` and typed `EventRegistrationEventWire` / `EventRegistrationEventDataWire`: a player signed up for (`action: 'signed_up'`) or a pending sign-up was cancelled on (`'cancelled'`) one of your listings on Vairified, by the `player` or by `staff`. It carries the listing's `eventId` (a number, not the envelope's id) and `partnerEventId`, the `memberId`, `changedAt`, and the member's profile and `rating` only as far as they allowed you. Verified like every other event, with nothing validated beyond the envelope.
+  - **New OAuth scope `user:event:register`** (the events permission) in `OAuthScope` and `SCOPES`. Ask for it in your Connect link so you may list a player on your events.
   - **`maxSpots` and `maxTeams` are integers from 1 to 100,000.** The API enforces this and every other field limit; apart from the date-zone check, the SDK sends the submission as given.
   - **New model fields:** `PartnerEvent.location` (`EventLocation`, including `country` and `null` — never `0` — coordinates when un-geocoded), `winScore`, `winBy`, `createdBy` (`get` only), and, on your own listings only, `partnerEventId`, `removed`, `logoUrl` (Vairified's stored copy, `null` until stored), `logoSourceUrl` (the URL you sent), `extras` and the other fields you submitted. On anyone else's event those are `null`.
   - **Errors use the existing types:** a refused field is a `ValidationError` (400) with the API's messages on `err.response`; an unknown event or listing is a `NotFoundError`; a missing scope, a key with no partner app, or re-sending a listing Vairified removed is a `VairifiedError` with `statusCode` 403; a concurrent-write conflict on `submit` is a `VairifiedError` with `statusCode` 409 (send it again).

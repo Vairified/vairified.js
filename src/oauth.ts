@@ -32,7 +32,8 @@ export type OAuthScope =
   | 'user:rating:read'
   | 'user:rating:history'
   | 'user:match:submit'
-  | 'user:webhook:subscribe';
+  | 'user:webhook:subscribe'
+  | 'user:event:register';
 
 /**
  * Human-readable description for every OAuth scope.
@@ -46,6 +47,8 @@ export const SCOPES: Readonly<Record<OAuthScope, string>> = Object.freeze({
   'user:rating:history': 'View your complete rating history',
   'user:match:submit': 'Submit match results on your behalf',
   'user:webhook:subscribe': 'Receive notifications when your rating changes',
+  'user:event:register':
+    "Show you as registered for this partner's events on VAIR, and tell the partner when you sign up for or cancel one of its events on VAIR",
 });
 
 /**

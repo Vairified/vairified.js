@@ -7,10 +7,11 @@
 import { ValidationError } from '../errors.js';
 import type { HttpTransport, QueryParams } from '../http.js';
 import { EventsPage, PartnerEvent, SubmittedEvent, WithdrawnEvent } from '../models/event.js';
-import { EventMembersResult } from '../models/event-members.js';
+import { EventMembersResult, EventRosterResult } from '../models/event-members.js';
 import type {
   EventListOptions,
   EventMembersResultWire,
+  EventRosterResultWire,
   EventsPageWire,
   PartnerEventSubmission,
   PartnerEventWire,
@@ -45,8 +46,8 @@ function assertZoned(field: string, value: string | null | undefined): void {
  * - **Reading the catalogue** ({@link list}, {@link get}, {@link members})
  *   needs `key:event:read`, which comes with the TRUSTED package or is
  *   approved for your app on request.
- * - **Listing your own events** ({@link submit}, {@link withdraw}) needs
- *   `key:event:submit`, which comes with the VERIFIED package or is approved
+ * - **Listing your own events** ({@link submit}, {@link withdraw},
+ *   {@link setMembers}) needs `key:event:submit`, which comes with the VERIFIED package or is approved
  *   for your app on request. `key:write` and `key:admin` do not grant it. A
  *   key holding only `key:event:submit` can still read its OWN listings:
  *   `list({ mine: true })`, and `get` / `members` on its own event ids
@@ -165,11 +166,18 @@ export class EventsResource {
    * The players enrolled in an event, deduplicated, with each one's rating in
    * the event's sport — for seeding your own brackets and pairings.
    *
-   * Vairified takes no sign-ups on partner listings, so the roster of one of
-   * your own listings is empty today.
+   * **On one of your own listings** the roster is readable by your app only
+   * (to any other app it answers 404). It includes members who signed up on
+   * Vairified and are **waiting for you** (`enrollmentStatus: 'PENDING'`), with
+   * `source` and `lapsed` on every row; send them in your list
+   * ({@link setMembers}) to confirm them. This read is also how you recover a
+   * registration notice you missed. A member who has not allowed you their
+   * profile, or who disconnected your app, comes back with their member number
+   * and status only: their name, `isVairified` and `isVairPlus` are `null`.
    *
    * @param eventId - Integer event id.
-   * @throws {@link NotFoundError} under the same conditions as {@link get}.
+   * @throws {@link NotFoundError} under the same conditions as {@link get}, and
+   *   for another partner's listing.
    * @throws {@link VairifiedError} with `statusCode` 403 when the key holds
    *   neither `key:event:read` nor `key:event:submit`.
    * @category Events
@@ -180,6 +188,9 @@ export class EventsResource {
    * for (const m of roster.members) {
    *   console.log(m.memberId, m.rating, m.isVairPlus);
    * }
+   *
+   * // On your own listing: who signed up on Vairified and is waiting for you?
+   * const waiting = roster.members.filter((m) => m.enrollmentStatus === 'PENDING');
    * ```
    */
   async members(eventId: number): Promise<EventMembersResult> {
@@ -195,8 +206,10 @@ export class EventsResource {
    * listing up to date.
    *
    * Players see it on that sport's events pages with your app's public name on
-   * a badge, and "Register" sends them to your `registrationUrl`. No
-   * registration or payment happens on Vairified.
+   * a badge. A player who registers on Vairified is held as pending for you
+   * (you get an `event.registration` webhook and see them in {@link members})
+   * and finishes on your `registrationUrl`; no payment happens on Vairified.
+   * Your list ({@link setMembers}) is what confirms them.
    *
    * ⛔ **Re-submitting is how you edit.** The listing is keyed by your own
    * `partnerEventId`: the same id updates the same listing, keeping its
@@ -208,8 +221,11 @@ export class EventsResource {
    * An event whose end has passed can no longer be submitted (withdraw it
    * instead).
    *
-   * Dates must carry their time zone, and `maxSpots`/`maxTeams` are at most
-   * 100,000 — see {@link PartnerEventSubmission}. A date with no time zone is
+   * `startDate` and `endDate` are both required, and neither can be cleared: a
+   * submission without an end date is refused (400) with a message saying the
+   * end date is required. Dates must carry their time zone, and
+   * `maxSpots`/`maxTeams` are at most 100,000 — see
+   * {@link PartnerEventSubmission}. A date with no time zone is
    * refused here, before the request is sent; every other field is checked by
    * the API, and the submission is sent as given (an omitted field stays
    * omitted, a `null` is sent as `null`).
@@ -219,8 +235,9 @@ export class EventsResource {
    * @throws {@link ValidationError} before any request when `startDate`,
    *   `endDate` or `registrationDeadline` has no time zone; and (400) for a
    *   field the API refuses (the
-   *   field-level messages are on `err.response`), an unknown or retired
-   *   `sportCode`, or an event that has already finished.
+   *   field-level messages are on `err.response`) — including a missing
+   *   `endDate` — an unknown or retired `sportCode`, or an event that has
+   *   already finished.
    * @throws {@link VairifiedError} with `statusCode` 403 when the key lacks
    *   `key:event:submit`, is not linked to a partner app, or the listing was
    *   removed by Vairified (re-sending it will keep failing; contact
@@ -285,5 +302,69 @@ export class EventsResource {
       path: `/partner/events/${encodeURIComponent(partnerEventId)}`,
     });
     return new WithdrawnEvent(data);
+  }
+
+  /**
+   * Send your WHOLE confirmed list for one of your listings, by Vairified
+   * member number, keyed by the `partnerEventId` you submitted it under. Send
+   * it whenever your roster changes; the listing's Vairified page then shows
+   * these members as going.
+   *
+   * ⛔ **The whole list, every time.** A member confirmed before and missing now
+   * is cancelled (their Vairified page shows it as cancelled by your app, and
+   * they can register again). An empty list clears the roster. Sending the same
+   * list again changes nothing. A list longer than the listing's capacity is
+   * accepted. At most 2000 member numbers; repeated numbers count once.
+   *
+   * **Members who signed up on Vairified** and are waiting for you (`PENDING`
+   * in {@link members}) are confirmed when your list includes them, and left
+   * waiting when it does not.
+   *
+   * **Who you may list:** a member who gave your app the events permission
+   * (`user:event:register`, asked for in your Connect link), a player your app
+   * created, or anyone with a current Vairified sign-up on this listing. A
+   * TRUSTED app may list any Vairified member who has not disconnected it. A
+   * member who disconnected your app, TRUSTED or not, can be listed only where
+   * they hold a current Vairified sign-up on this listing. Anyone else comes
+   * back in {@link EventRosterResult.refused} with the reason
+   * (`NO_EVENTS_PERMISSION`, `DISCONNECTED`, or `UNKNOWN_MEMBER` for a number
+   * that no longer names a member, whose place is then left as it was);
+   * everyone else on the list is still applied.
+   *
+   * No registration notice is sent for changes your own list makes. The list
+   * is sent as given; the API checks it.
+   *
+   * @param partnerEventId - Your identifier for the listing.
+   * @param memberIds - Every member confirmed on the listing, by member number.
+   * @returns {@link EventRosterResult} — the counts, and who was refused.
+   * @throws {@link ValidationError} (400) for a list the API refuses: more than
+   *   2000 numbers, or anything that is not a whole member number.
+   * @throws {@link NotFoundError} when you have no listing with that id.
+   * @throws {@link VairifiedError} with `statusCode` 403 when the key lacks
+   *   `key:event:submit`, is not linked to a partner app, or the listing was
+   *   removed by Vairified.
+   * @throws {@link VairifiedError} with `statusCode` 409 when the listing is
+   *   withdrawn (submit it again first) or cancelled.
+   * @category Events
+   *
+   * @example
+   * ```ts
+   * const result = await client.events.setMembers('autumn-doubles-avon', [4873327, 4873330]);
+   * console.log(result.added, result.confirmed, result.unchanged, result.removed);
+   * for (const r of result.refused) {
+   *   console.log(r.memberId, r.reason, r.message); // e.g. DISCONNECTED
+   * }
+   * ```
+   */
+  async setMembers(
+    partnerEventId: string,
+    memberIds: readonly number[],
+  ): Promise<EventRosterResult> {
+    const data = await this.#http.request<EventRosterResultWire>({
+      method: 'PUT',
+      path: `/partner/events/${encodeURIComponent(partnerEventId)}/members`,
+      body: { memberIds },
+    });
+    return new EventRosterResult(data);
   }
 }

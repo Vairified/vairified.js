@@ -336,6 +336,8 @@ if (isMemberStatusEvent(event)) {
   // the member disconnected your app — stop reading their data
 } else if (isEventCreatedEvent(event)) {
   // a new event was published
+} else if (isEventRegistrationEvent(event)) {
+  // a player signed up for (or cancelled a pending sign-up on) one of YOUR listings
 }
 // Anything else is an event type this version does not know about. It still
 // verified, and arrives as the plain envelope — ignore it, or log it.
@@ -424,6 +426,7 @@ Browse the event catalogue, and list your own events in Vairified's events direc
 | `events.members(eventId)` | `GET /partner/event/:eventId/members` | as `get` |
 | `events.submit(submission)` | `POST /partner/events` | `key:event:submit` |
 | `events.withdraw(partnerEventId)` | `DELETE /partner/events/:partnerEventId` | `key:event:submit` |
+| `events.setMembers(partnerEventId, memberIds)` | `PUT /partner/events/:partnerEventId/members` | `key:event:submit` |
 
 ### Browse the catalogue
 
@@ -457,6 +460,7 @@ const listing = await client.events.submit({
   type: 'TOURNAMENT',
   registrationUrl: 'https://example.com/register/autumn-doubles',
   startDate: '2026-11-14T09:00:00-05:00',
+  endDate: '2026-11-15T17:00:00-05:00',  // required, like startDate
   maxTeams: 32,                          // maxSpots / maxTeams: 1 to 100,000
   logoUrl: 'https://example.com/logos/autumn-doubles.png',
   location: { city: 'Avon', state: 'IN' },
@@ -474,8 +478,40 @@ await client.events.withdraw('autumn-doubles-avon'); // reversible: submit again
 ```
 
 On a re-submit, **leaving a field out keeps its current value and sending `null` clears it**.
-Cancel with `status: 'CANCELLED'`. Only your own listings carry `partnerEventId`, `removed`
-and the fields you sent; on anyone else's event they are `null`.
+`startDate` and `endDate` are the exceptions: both are required on every submission and neither
+can be cleared; a listing sent without an end date is refused with a message saying the end
+date is required. Cancel with `status: 'CANCELLED'`. Only your own listings carry
+`partnerEventId`, `removed` and the fields you sent; on anyone else's event they are `null`.
+
+### Sync your roster
+
+A player who clicks Register on your listing is held as **pending** for you: you get an
+`event.registration` webhook, and they show in the roster read with
+`enrollmentStatus: 'PENDING'`. Your **whole** confirmed list, sent whenever your roster
+changes, is what confirms them. Players connect to your app with the events permission,
+`user:event:register`, which you ask for in your Connect link.
+
+```ts
+const result = await client.events.setMembers('autumn-doubles-avon', [4873327, 4873330]);
+console.log(result.added, result.confirmed, result.unchanged, result.removed);
+for (const r of result.refused) {
+  // 'NO_EVENTS_PERMISSION' | 'DISCONNECTED' | 'UNKNOWN_MEMBER' (an open set)
+  console.log(r.memberId, r.reason, r.message);
+}
+
+// Who is waiting for you, and where each sign-up came from
+const roster = await client.events.members(listing.eventId);
+for (const m of roster.members) {
+  console.log(m.memberId, m.enrollmentStatus, m.source, m.lapsed);
+  // firstName / lastName / isVairified / isVairPlus are null for a member who has
+  // not allowed you their profile, or who disconnected your app
+}
+```
+
+The list is the whole roster every time: a member confirmed before and missing now is
+cancelled, an empty list clears the roster, and sending the same list again changes nothing.
+Members your app may not list come back in `refused` with the reason; everyone else on the
+list is still applied. A withdrawn or cancelled listing answers 409.
 
 ## OAuth Connect Flow
 
@@ -532,6 +568,7 @@ const bad: OAuthScope[] = ['user:profile:read', 'rating']; // type error
 | `user:rating:history`     | Complete rating history                        |
 | `user:match:submit`       | Submit matches on behalf of user               |
 | `user:webhook:subscribe`  | Rating change notifications                    |
+| `user:event:register`     | Registration for your events on VAIR, and notices of VAIR sign-ups |
 
 ## Leaderboards
 
