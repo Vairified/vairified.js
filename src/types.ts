@@ -1141,7 +1141,9 @@ export interface EventRegistrationEventDataWire {
    * `signed_up`: the member asked for a place on Vairified; it is pending until
    * your member list names them. `cancelled`: a pending place was taken back on
    * Vairified, or the member deleted their Vairified account, which ends every
-   * place they held on your listings, confirmed ones included.
+   * place they held on your listings that have not finished, confirmed ones
+   * included. A place on a listing that has finished stays as it is and you are
+   * not told.
    */
   readonly action: OpenEnum<'signed_up' | 'cancelled'>;
   /**
