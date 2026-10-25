@@ -1037,8 +1037,8 @@ describe('events.setMembers', () => {
             refused: [
               {
                 memberId: 4873399,
-                reason: 'NO_EVENTS_PERMISSION',
-                message: "This member hasn't given you the events permission.",
+                reason: 'NOT_CONNECTED',
+                message: "This member hasn't connected your app.",
               },
               {
                 memberId: 4873400,
@@ -1063,10 +1063,12 @@ describe('events.setMembers', () => {
     );
 
     expect(result.refused.map((r) => [r.memberId, r.reason])).toEqual([
-      [4873399, 'NO_EVENTS_PERMISSION'],
+      [4873399, 'NOT_CONNECTED'],
       [4873400, 'DISCONNECTED'],
       [9999999, 'UNKNOWN_MEMBER'],
     ]);
+    const notConnected = result.refused[0];
+    expect(notConnected?.message).toBe("This member hasn't connected your app.");
     const disconnected = result.refused[1];
     expect(disconnected).toBeInstanceOf(EventRosterRefusal);
     expect(disconnected?.message).toBe(

@@ -263,10 +263,13 @@ export class MembersResource {
   /**
    * Poll for rating change notifications.
    *
-   * Returns a list of {@link RatingUpdate} objects for every player
-   * whose rating has changed since the last poll. Members are
-   * considered subscribed when they have an active OAuth connection
-   * with the `user:webhook:subscribe` scope.
+   * Returns a list of {@link RatingUpdate} objects. This is a snapshot,
+   * not a change feed: every connected member is returned on every call,
+   * whether or not their rating moved since you last polled. Members are
+   * considered subscribed when they are connected to your app, and a
+   * connected member's rating values are always included. Unlike rating
+   * webhooks, which go only to an app Vairified has approved, polling
+   * needs only a working, unsuspended key.
    */
   async ratingUpdates(): Promise<readonly RatingUpdate[]> {
     const data = await this.#http.request<{ updates?: PartnerRatingUpdateWire[] } | unknown>({

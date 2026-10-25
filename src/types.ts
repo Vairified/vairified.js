@@ -619,9 +619,10 @@ export interface EventsPageWire {
 /**
  * One enrolled member of an event, as the API sends it.
  *
- * On one of YOUR OWN listings, a member who has not allowed you their profile,
- * or who disconnected your app, comes back with `memberId`, `enrollmentStatus`,
- * `isPaid`, `source` and `lapsed` only, so the profile fields are optional.
+ * On one of YOUR OWN listings, a member who never connected your app, or who
+ * disconnected it, comes back with `memberId`, `enrollmentStatus`, `isPaid`,
+ * `source` and `lapsed` only, so the profile fields are optional. (A member
+ * Vairified staff added who never connected your app also carries their name.)
  *
  * @category Events
  */
@@ -796,9 +797,9 @@ export interface WithdrawnEventWire {
  * - `UNKNOWN_MEMBER`: no Vairified member has this number (including one merged
  *   into another account, or one deleting their account). That person's place on
  *   the listing is left as it was.
- * - `NO_EVENTS_PERMISSION`: the member has not given your app the events
- *   permission (`user:event:register`), is not a player your app created, and
- *   holds no current Vairified sign-up on this listing.
+ * - `NOT_CONNECTED`: the member has never connected your app, is not a player
+ *   your app created, and holds no current Vairified sign-up on this listing
+ *   (never sent to a TRUSTED app).
  * - `DISCONNECTED`: the member disconnected your app (a TRUSTED app included)
  *   and holds no current Vairified sign-up on this listing. They can be listed
  *   again once they reconnect.
@@ -808,7 +809,7 @@ export interface WithdrawnEventWire {
  * @category Events
  */
 export type EventRosterRefusalReason = OpenEnum<
-  'UNKNOWN_MEMBER' | 'NO_EVENTS_PERMISSION' | 'DISCONNECTED'
+  'UNKNOWN_MEMBER' | 'NOT_CONNECTED' | 'DISCONNECTED'
 >;
 
 /** One member your list named and the API did not apply, as the API sends it. @category Events */
@@ -912,10 +913,9 @@ export interface MemberStatusEventSportWire {
 /**
  * The `data` block of a `member.status` event.
  *
- * :warning: `sports` is **absent, not empty**, for a member who did not grant
- * `user:rating:read`. Absence means "we were not permitted to tell you", which
- * is a different claim from "holds no certifications" — check for the key
- * before concluding anything about a member's rater standing.
+ * `sports` is always sent: a connected member's app holds every member
+ * permission, so it is no longer withheld. An empty map means "holds no
+ * current certification".
  *
  * :warning: A sport appears only while the member holds a **current**
  * certification in it. Expired and revoked certifications are not reported, so
@@ -926,6 +926,13 @@ export interface MemberStatusEventDataWire {
   readonly memberId: number;
   readonly isVairPlus: boolean;
   readonly isAmbassador: boolean;
+  /**
+   * Per-sport VAIR Pro standing, keyed by sport code. Always sent now; `{}`
+   * means the member holds no current certification. Still optional (and
+   * nullable) in this type because `verifyWebhook()` hands over a delivery
+   * queued before the change, or an explicit `null`, as it arrived rather than
+   * refusing it.
+   */
   readonly sports?: Record<string, MemberStatusEventSportWire> | null;
   /**
    * VAIR Pro standing **collapsed across every sport**: `ACTIVE` if any sport's
@@ -985,10 +992,14 @@ export interface ConnectionRevokedEventWire extends WebhookEventEnvelopeWire {
  * not matched since. Reusing the poll type here is a mistake this SDK made once
  * and the reason this docstring exists.
  *
- * :warning: **Two variants, distinguished by {@link ratingDataWithheld}.** An app
- * holding `user:webhook:subscribe` but not `user:rating:read` is told *that* a
- * member's rating changed and not *what it changed to* — `sports` is **absent**,
- * not empty, and `ratingDataWithheld` is `true`.
+ * Rating webhooks are sent only to an app Vairified has approved; polling
+ * (`members.ratingUpdates()`) needs only a working, unsuspended key.
+ *
+ * :warning: **A connected member's ratings are always included.** The
+ * notification-only variant ({@link ratingDataWithheld} `true`, `sports`
+ * **absent**, not empty) is no longer sent for a connected member. It can still
+ * appear in your delivery log, for a delivery abandoned after the member
+ * disconnected your app, and on a legacy pre-Connect subscription.
  */
 /**
  * One sport's rating standing inside a `rating.updated` snapshot.
@@ -1017,9 +1028,10 @@ export interface RatingUpdatedEventDataWire {
    * The member's complete rating standing, keyed by sport code, at the moment
    * the computation finished — a **snapshot**, not a diff.
    *
-   * :rotating_light: **Absent when the partner lacks `user:rating:read`.** Absence
-   * means "we were not permitted to tell you", which is not the same claim as
-   * "no ratings". Check {@link ratingDataWithheld}.
+   * Always present for a connected member. :rotating_light: **Absent on the
+   * notification-only variant**, where absence means "the rating data was
+   * withheld", which is not the same claim as "no ratings". Check
+   * {@link ratingDataWithheld}.
    */
   readonly sports?: Readonly<Record<string, RatingUpdatedSportWire>> | null;
 
@@ -1055,9 +1067,11 @@ export interface RatingUpdatedEventDataWire {
   readonly sequence: string;
 
   /**
-   * Present and `true` only on the notification variant — the partner was not
-   * granted `user:rating:read`, so {@link sports} is absent by design rather
-   * than because nothing changed.
+   * Present and `true` only on the notification variant, where {@link sports}
+   * is absent by design rather than because nothing changed. It is no longer
+   * sent for a connected member. You can still see it in your delivery log on a
+   * delivery abandoned after the member disconnected your app, and on a legacy
+   * pre-Connect subscription.
    */
   readonly ratingDataWithheld?: boolean;
 }
@@ -1121,9 +1135,13 @@ export interface EventCreatedEventWire extends WebhookEventEnvelopeWire {
  * exactly as on `event.created`: the envelope's is the delivery's own id (dedupe
  * on it), this one is your listing's Vairified event number.
  *
- * :warning: **The profile fields are what the member allowed you.** A member
- * who disconnected your app comes with `memberId`, `action`, `source` and the
- * listing only; from then on you receive their member number alone. The
+ * :warning: **The profile fields follow the member's connection.** They are
+ * present when the member is connected to your app, your app is TRUSTED, or the
+ * member is a placeholder your app created. A member who never connected your
+ * app, or who disconnected it, comes with `memberId`, `action`, `source` and the
+ * listing only (a member Vairified staff registered who never connected your
+ * app also carries their name); after a disconnect you receive their member
+ * number alone. The
  * notice never carries an email address or a phone number.
  *
  * Missed one? Delivery is at-least-once and retried for hours; after that, read
@@ -1154,10 +1172,10 @@ export interface EventRegistrationEventDataWire {
   /** When it happened (ISO 8601). */
   readonly changedAt: string;
   /**
-   * Present when the member allowed you their profile (`user:profile:read`),
-   * your app is TRUSTED, the member is a placeholder your app created, or
-   * Vairified staff registered a member who never connected to you. Absent for
-   * a member who disconnected your app.
+   * Present when the member is connected to your app, your app is TRUSTED, the
+   * member is a placeholder your app created, or Vairified staff registered a
+   * member who never connected to you. Absent for a member who disconnected your
+   * app.
    */
   readonly firstName?: string;
   /** As {@link firstName}. */
@@ -1167,9 +1185,8 @@ export interface EventRegistrationEventDataWire {
   /** Whether the member holds VAIR+ now. With the profile only. */
   readonly isVairPlus?: boolean;
   /**
-   * The member's rating in the listing's sport, when the member allowed it
-   * (`user:rating:read`), your app is TRUSTED, or the member is your own
-   * placeholder.
+   * The member's rating in the listing's sport, when the member is connected to
+   * your app, your app is TRUSTED, or the member is your own placeholder.
    */
   readonly rating?: number;
 }

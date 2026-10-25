@@ -488,14 +488,16 @@ date is required. Cancel with `status: 'CANCELLED'`. Only your own listings carr
 A player who clicks Register on your listing is held as **pending** for you: you get an
 `event.registration` webhook, and they show in the roster read with
 `enrollmentStatus: 'PENDING'`. Your **whole** confirmed list, sent whenever your roster
-changes, is what confirms them. Players connect to your app with the events permission,
-`user:event:register`, which you ask for in your Connect link.
+changes, is what confirms them. You may list a member connected to your app, a player your app
+created, or anyone with a VAIR sign-up on that listing; a TRUSTED app may list any member who has
+not disconnected it. A member can also connect your app from the listing's VAIR page when they
+click Register.
 
 ```ts
 const result = await client.events.setMembers('autumn-doubles-avon', [4873327, 4873330]);
 console.log(result.added, result.confirmed, result.unchanged, result.removed);
 for (const r of result.refused) {
-  // 'NO_EVENTS_PERMISSION' | 'DISCONNECTED' | 'UNKNOWN_MEMBER' (an open set)
+  // 'NOT_CONNECTED' | 'DISCONNECTED' | 'UNKNOWN_MEMBER' (an open set)
   console.log(r.memberId, r.reason, r.message);
 }
 
@@ -503,8 +505,8 @@ for (const r of result.refused) {
 const roster = await client.events.members(listing.eventId);
 for (const m of roster.members) {
   console.log(m.memberId, m.enrollmentStatus, m.source, m.lapsed);
-  // firstName / lastName / isVairified / isVairPlus are null for a member who has
-  // not allowed you their profile, or who disconnected your app
+  // firstName / lastName / isVairified / isVairPlus are null for a member who
+  // never connected your app, or who disconnected it
 }
 ```
 
@@ -524,7 +526,7 @@ await using client = new Vairified({ apiKey: 'vair_pk_xxx' });
 const state = generateState();
 const auth = await client.oauth.authorize({
   redirectUri: 'https://myapp.com/oauth/callback',
-  scopes: ['user:profile:read', 'user:rating:read', 'user:match:submit'],
+  scopes: ['user:profile:read', 'user:rating:read', 'user:match:submit'], // checked, not limiting
   state,
 });
 // Redirect user to auth.authorizationUrl
@@ -559,6 +561,12 @@ const bad: OAuthScope[] = ['user:profile:read', 'rating']; // type error
 ```
 
 ### Available scopes
+
+**A connection is all or nothing.** The `scopes` you send are still checked (an unknown one is
+refused), but they do not limit what the member grants: the consent screen lists every member
+permission below, with Allow or Cancel and nothing to untick. A connected member's app holds all
+of them, and the token, refresh, userinfo and member responses report all of them, so you never
+need to ask for a wider scope later. A member takes access back only by disconnecting.
 
 | Scope                     | Description                                    |
 |---------------------------|------------------------------------------------|

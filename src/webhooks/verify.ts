@@ -523,8 +523,8 @@ export function isEventCreatedEvent(event: VerifiedWebhookEvent): event is Event
  *
  * :warning: `data.action` (`signed_up`, `cancelled`) and `data.source`
  * (`player`, `staff`) are open sets: never branch on them exhaustively. The
- * profile fields are absent for a member who has not allowed you them, and for
- * one who disconnected your app.
+ * profile fields are absent for a member who never connected your app (unless
+ * Vairified staff registered them), and for one who disconnected it.
  *
  * @example
  * ```ts

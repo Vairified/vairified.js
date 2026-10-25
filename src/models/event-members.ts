@@ -22,11 +22,14 @@ import type {
  *
  * ## On your own listings
  *
- * The row follows what the member allowed you. A member who has not allowed
- * you their profile, or who disconnected your app, comes back with
- * `memberId`, `enrollmentStatus`, `isPaid`, `source` and `lapsed` only: the
- * profile fields ({@link firstName}, {@link lastName}, {@link isVairified},
- * {@link isVairPlus}) and {@link rating} are then `null`. {@link source} and
+ * The row follows the member's connection to your app. A connected member
+ * (or any member, for a TRUSTED app, or a placeholder your app created) comes
+ * with every field. A member who never connected your app, or who disconnected
+ * it, comes back with `memberId`, `enrollmentStatus`, `isPaid`, `source` and
+ * `lapsed` only: the profile fields ({@link firstName}, {@link lastName},
+ * {@link isVairified}, {@link isVairPlus}) and {@link rating} are then `null`.
+ * A member Vairified staff added who never connected your app also carries
+ * their name. {@link source} and
  * {@link lapsed} are filled in on your own listings only; on every other event
  * they are `null` and every profile field is present.
  *
@@ -34,25 +37,26 @@ import type {
  */
 export class EventMember {
   readonly memberId: number;
-  /** `null` on your own listing when the member has not allowed you their profile. */
+  /** `null` on your own listing when the member never connected your app, or disconnected it. */
   readonly firstName: string | null;
-  /** `null` on your own listing when the member has not allowed you their profile. */
+  /** `null` on your own listing when the member never connected your app, or disconnected it. */
   readonly lastName: string | null;
   /**
    * The player's overall-open rating **in the event's sport**, truncated to 3
-   * decimals. `null` when the player has no rating yet, or has not allowed you
-   * their profile.
+   * decimals. `null` when the player has no rating yet, or (on your own
+   * listing) never connected your app or disconnected it.
    */
   readonly rating: number | null;
   /**
    * Whether the player has completed VAIRification. `null` on your own listing
-   * when the member has not allowed you their profile.
+   * when the member never connected your app, or disconnected it.
    */
   readonly isVairified: boolean | null;
   /**
    * Whether the player holds a **paid VAIR+ membership**. Not {@link isPaid},
    * which is about this event's entry fee; the two are independent. `null` on
-   * your own listing when the member has not allowed you their profile.
+   * your own listing when the member never connected your app, or disconnected
+   * it.
    */
   readonly isVairPlus: boolean | null;
   /**
@@ -129,7 +133,7 @@ export class EventRosterRefusal {
   readonly memberId: number;
   /** See {@link EventRosterRefusalReason}. An open set: never branch on it exhaustively. */
   readonly reason: EventRosterRefusalReason;
-  /** A sentence saying why, e.g. "This member hasn't given you the events permission." */
+  /** A sentence saying why, e.g. "This member hasn't connected your app." */
   readonly message: string;
 
   /** @internal */

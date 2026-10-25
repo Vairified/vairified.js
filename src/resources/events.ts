@@ -171,9 +171,11 @@ export class EventsResource {
    * Vairified and are **waiting for you** (`enrollmentStatus: 'PENDING'`), with
    * `source` and `lapsed` on every row; send them in your list
    * ({@link setMembers}) to confirm them. This read is also how you recover a
-   * registration notice you missed. A member who has not allowed you their
-   * profile, or who disconnected your app, comes back with their member number
-   * and status only: their name, `isVairified` and `isVairPlus` are `null`.
+   * registration notice you missed. A member who never connected your app, or
+   * who disconnected it, comes back with their member number and status only:
+   * their name, `isVairified`, `isVairPlus` and `rating` are `null` (a member
+   * Vairified staff added who never connected your app also carries their
+   * name).
    *
    * @param eventId - Integer event id.
    * @throws {@link NotFoundError} under the same conditions as {@link get}, and
@@ -320,14 +322,15 @@ export class EventsResource {
    * in {@link members}) are confirmed when your list includes them, and left
    * waiting when it does not.
    *
-   * **Who you may list:** a member who gave your app the events permission
-   * (`user:event:register`, asked for in your Connect link), a player your app
+   * **Who you may list:** a member connected to your app, a player your app
    * created, or anyone with a current Vairified sign-up on this listing. A
    * TRUSTED app may list any Vairified member who has not disconnected it. A
    * member who disconnected your app, TRUSTED or not, can be listed only where
-   * they hold a current Vairified sign-up on this listing. Anyone else comes
+   * they hold a current Vairified sign-up on this listing. A member can also
+   * connect your app from the listing's Vairified page when they click
+   * Register; allowing it there connects them with everything. Anyone else comes
    * back in {@link EventRosterResult.refused} with the reason
-   * (`NO_EVENTS_PERMISSION`, `DISCONNECTED`, or `UNKNOWN_MEMBER` for a number
+   * (`NOT_CONNECTED`, `DISCONNECTED`, or `UNKNOWN_MEMBER` for a number
    * that no longer names a member, whose place is then left as it was);
    * everyone else on the list is still applied.
    *

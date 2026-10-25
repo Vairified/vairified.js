@@ -25,9 +25,10 @@ export class MatchesResource {
   /**
    * Submit a {@link MatchBatch} for rating calculation.
    *
-   * All players in every match must have granted the `user:match:submit`
-   * scope via OAuth (unless your API key has the
-   * `user:match:submit:trusted` scope, which skips per-player consent).
+   * Every player in every match must be connected to your app (any live
+   * connection; there is no separate per-match permission). A TRUSTED app
+   * skips that check. A player who is not connected is refused with "Player X
+   * has not connected their VAIR account to this partner".
    *
    * Set `batch.dryRun = true` to validate without persisting.
    *

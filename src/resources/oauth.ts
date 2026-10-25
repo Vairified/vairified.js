@@ -22,7 +22,8 @@ import {
  *
  * 1. {@link authorize} — start an authorization, get a URL to redirect
  *    the player to.
- * 2. Player approves on the Vairified site and is redirected back to
+ * 2. Player allows the connection on the Vairified site (all or nothing:
+ *    every member permission, whatever you asked for) and is redirected back to
  *    your `redirectUri` with a `code` query parameter.
  * 3. {@link exchangeToken} — swap the code for access and refresh
  *    tokens plus the player's external ID.
@@ -42,6 +43,10 @@ export class OAuthResource {
 
   /**
    * Start an OAuth authorization flow.
+   *
+   * `scopes` is still sent and checked, but it does not limit what the member
+   * grants: allowing the connection grants every member scope (see
+   * {@link OAuthScope}).
    *
    * @throws {@link OAuthError} with `errorCode: 'invalid_scope'` if a
    *   requested scope is not in the accepted list.
