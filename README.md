@@ -55,6 +55,7 @@ Every operation lives on a sub-resource that mirrors the REST path:
 | `client.members`        | `get`, `getBulk`, `getByEmail`, `search`, `find`, `ratingUpdates` |
 | `client.matches`        | `submit`, `tournamentImport`, `testWebhook`                      |
 | `client.oauth`          | `authorize`, `exchangeToken`, `refresh`, `revoke`                |
+| `client.events`         | `list`, `get`, `members`, `submit`, `withdraw`                   |
 | `client.webhooks`       | `deliveries`                                                     |
 | `client.leaderboard`    | `list`, `rank`, `categories`                                     |
 | `client.usage()`        | Rate-limit + request-count stats                                 |
@@ -335,6 +336,8 @@ if (isMemberStatusEvent(event)) {
   // the member disconnected your app — stop reading their data
 } else if (isEventCreatedEvent(event)) {
   // a new event was published
+} else if (isEventRegistrationEvent(event)) {
+  // a player signed up for (or cancelled a pending sign-up on) one of YOUR listings
 }
 // Anything else is an event type this version does not know about. It still
 // verified, and arrives as the plain envelope — ignore it, or log it.
@@ -412,6 +415,106 @@ const ratingEvents = await client.webhooks.deliveries({ event: 'rating.updated' 
 console.log(`${ratingEvents.total} total rating.updated deliveries`);
 ```
 
+## Events
+
+Browse the event catalogue, and list your own events in Vairified's events directory.
+
+| Method | Route | Scope |
+|---|---|---|
+| `events.list(options)` | `GET /partner/events` | `key:event:read`; `key:event:submit` alone allows `mine: true` |
+| `events.get(eventId)` | `GET /partner/event/:eventId` | `key:event:read`, or `key:event:submit` for your own listings |
+| `events.members(eventId)` | `GET /partner/event/:eventId/members` | as `get` |
+| `events.submit(submission)` | `POST /partner/events` | `key:event:submit` |
+| `events.withdraw(partnerEventId)` | `DELETE /partner/events/:partnerEventId` | `key:event:submit` |
+| `events.setMembers(partnerEventId, memberIds)` | `PUT /partner/events/:partnerEventId/members` | `key:event:submit` |
+
+### Browse the catalogue
+
+```ts
+const page = await client.events.list({
+  type: 'TOURNAMENT',
+  lat: 30.2849,
+  lng: -97.7341,
+  radiusMiles: 25,                  // at most 250
+  dateFrom: '2026-11-01T00:00:00Z', // a date and time WITH its zone
+  limit: 50,
+  offset: 0,
+});
+console.log(`${page.events.length} of ${page.total}`);
+
+const event = await client.events.get(page.events[0].eventId);
+const roster = await client.events.members(event.eventId);
+```
+
+`lat`, `lng` and `radiusMiles` go together; sending some of them is a 400. Dates must carry
+their time zone (`Z` or an offset); the SDK refuses a plain date with a `ValidationError`
+before sending the request.
+
+### List your own events
+
+```ts
+const listing = await client.events.submit({
+  partnerEventId: 'autumn-doubles-avon', // YOUR id; the same id again updates the listing
+  sportCode: 'pickleball',
+  name: 'Autumn Doubles - Avon',
+  type: 'TOURNAMENT',
+  registrationUrl: 'https://example.com/register/autumn-doubles',
+  startDate: '2026-11-14T09:00:00-05:00',
+  endDate: '2026-11-15T17:00:00-05:00',  // required, like startDate
+  maxTeams: 32,                          // maxSpots / maxTeams: 1 to 100,000
+  logoUrl: 'https://example.com/logos/autumn-doubles.png',
+  location: { city: 'Avon', state: 'IN' },
+});
+console.log(listing.created ? 'listed' : 'updated', listing.eventId);
+
+// Reconcile: what have I listed?
+const mine = await client.events.list({ mine: true, limit: 100 });
+for (const e of mine.events) {
+  if (e.removed) continue; // taken down by Vairified; re-sending it is refused
+  console.log(e.partnerEventId, e.logoUrl ?? 'logo not stored yet');
+}
+
+await client.events.withdraw('autumn-doubles-avon'); // reversible: submit again to restore
+```
+
+On a re-submit, **leaving a field out keeps its current value and sending `null` clears it**.
+`startDate` and `endDate` are the exceptions: both are required on every submission and neither
+can be cleared; a listing sent without an end date is refused with a message saying the end
+date is required. Cancel with `status: 'CANCELLED'`. Only your own listings carry
+`partnerEventId`, `removed` and the fields you sent; on anyone else's event they are `null`.
+
+### Sync your roster
+
+A player who clicks Register on your listing is held as **pending** for you: you get an
+`event.registration` webhook, and they show in the roster read with
+`enrollmentStatus: 'PENDING'`. Your **whole** confirmed list, sent whenever your roster
+changes, is what confirms them. You may list a member connected to your app, a player your app
+created, or anyone with a VAIR sign-up on that listing; a TRUSTED app may list any member who has
+not disconnected it. A member can also connect your app from the listing's VAIR page when they
+click Register.
+
+```ts
+const result = await client.events.setMembers('autumn-doubles-avon', [4873327, 4873330]);
+console.log(result.added, result.confirmed, result.unchanged, result.removed);
+for (const r of result.refused) {
+  // 'NOT_CONNECTED' | 'DISCONNECTED' | 'UNKNOWN_MEMBER' (an open set)
+  console.log(r.memberId, r.reason, r.message);
+}
+
+// Who is waiting for you, and where each sign-up came from
+const roster = await client.events.members(listing.eventId);
+for (const m of roster.members) {
+  console.log(m.memberId, m.enrollmentStatus, m.source, m.lapsed);
+  // firstName / lastName / isVairified / isVairPlus are null for a member who
+  // never connected your app, or who disconnected it
+}
+```
+
+The list is the whole roster every time: a member confirmed before and missing now is
+cancelled, an empty list clears the roster, and sending the same list again changes nothing.
+Members your app may not list come back in `refused` with the reason; everyone else on the
+list is still applied. A withdrawn or cancelled listing answers 409.
+
 ## OAuth Connect Flow
 
 ```ts
@@ -423,7 +526,7 @@ await using client = new Vairified({ apiKey: 'vair_pk_xxx' });
 const state = generateState();
 const auth = await client.oauth.authorize({
   redirectUri: 'https://myapp.com/oauth/callback',
-  scopes: ['user:profile:read', 'user:rating:read', 'user:match:submit'],
+  scopes: ['user:profile:read', 'user:rating:read', 'user:match:submit'], // checked, not limiting
   state,
 });
 // Redirect user to auth.authorizationUrl
@@ -459,6 +562,12 @@ const bad: OAuthScope[] = ['user:profile:read', 'rating']; // type error
 
 ### Available scopes
 
+**A connection is all or nothing.** The `scopes` you send are still checked (an unknown one is
+refused), but they do not limit what the member grants: the consent screen lists every member
+permission below, with Allow or Cancel and nothing to untick. A connected member's app holds all
+of them, and the token, refresh, userinfo and member responses report all of them, so you never
+need to ask for a wider scope later. A member takes access back only by disconnecting.
+
 | Scope                     | Description                                    |
 |---------------------------|------------------------------------------------|
 | `user:profile:read`       | Name, location, verification status            |
@@ -467,6 +576,7 @@ const bad: OAuthScope[] = ['user:profile:read', 'rating']; // type error
 | `user:rating:history`     | Complete rating history                        |
 | `user:match:submit`       | Submit matches on behalf of user               |
 | `user:webhook:subscribe`  | Rating change notifications                    |
+| `user:event:register`     | Registration for your events on VAIR, and notices of VAIR sign-ups |
 
 ## Leaderboards
 

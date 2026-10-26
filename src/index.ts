@@ -60,16 +60,27 @@ export {
 } from './errors.js';
 // ---- Response models ----
 export {
+  EventClub,
+  EventCreator,
+  EventLocation,
+  EventMember,
+  EventMembersResult,
+  EventRosterRefusal,
+  EventRosterResult,
+  EventsPage,
   MatchBatchResult,
   Member,
   MemberEmailMatch,
   MemberSportMap,
   MembersByEmailResult,
+  PartnerEvent,
   RatingUpdate,
   SportRating,
+  SubmittedEvent,
   TournamentImportResult,
   WebhookDeliveriesResult,
   WebhookDelivery,
+  WithdrawnEvent,
 } from './models/index.js';
 export type {
   AuthorizationResponse,
@@ -89,6 +100,7 @@ export {
 } from './oauth.js';
 // ---- Resource classes (typically accessed via client.*) ----
 export {
+  EventsResource,
   LeaderboardResource,
   MatchesResource,
   MembersResource,
@@ -104,6 +116,15 @@ export type {
   EventCreatedClubWire,
   EventCreatedEventDataWire,
   EventCreatedEventWire,
+  EventListOptions,
+  EventMemberSource,
+  EventMembersResultWire,
+  EventRegistrationEventDataWire,
+  EventRegistrationEventWire,
+  EventRosterRefusalReason,
+  EventRosterRefusalWire,
+  EventRosterResultWire,
+  EventsPageWire,
   GameInput,
   Gender,
   LeaderboardOptions,
@@ -116,6 +137,14 @@ export type {
   MemberStatusWire,
   MembersByEmailResultWire,
   OpenEnum,
+  PartnerEventClubWire,
+  PartnerEventCreatorWire,
+  PartnerEventLocationWire,
+  PartnerEventMemberWire,
+  PartnerEventSubmission,
+  PartnerEventSubmissionLocation,
+  PartnerEventSubmissionType,
+  PartnerEventWire,
   PartnerMemberEmailMatchWire,
   PartnerMemberWire,
   PartnerRatingUpdateWire,
@@ -126,6 +155,7 @@ export type {
   RatingUpdatedSportWire,
   SearchFilters,
   SportRatingWire,
+  SubmittedEventWire,
   TournamentImportResultWire,
   UnknownWebhookEventWire,
   VairifiedEnvironment,
@@ -134,6 +164,7 @@ export type {
   WebhookDeliveriesResultWire,
   WebhookDeliveryWire,
   WebhookEventEnvelopeWire,
+  WithdrawnEventWire,
 } from './types.js';
 export type { VerifyWebhookOptions } from './webhooks/verify.js';
 // ---- Webhook verification (no client needed) ----
@@ -143,6 +174,7 @@ export {
   dedupeKey,
   isConnectionRevokedEvent,
   isEventCreatedEvent,
+  isEventRegistrationEvent,
   isMemberStatusEvent,
   isNewerSequence,
   isRatingUpdatedEvent,

@@ -459,6 +459,378 @@ export interface WebhookDeliveriesResultWire {
 }
 
 // ---------------------------------------------------------------------------
+// Partner events — Vairified#547, #1320
+// ---------------------------------------------------------------------------
+
+/**
+ * The kinds of event a partner may LIST with {@link EventsResource.submit}.
+ *
+ * Narrower than the types {@link EventsResource.list} can return: the
+ * catalogue also holds VAIR's own products (`RATING`, `POWRPIK`, `KASHKUP`)
+ * and the internal structure of events VAIR runs, none of which a partner
+ * listing can be.
+ *
+ * @category Events
+ */
+export type PartnerEventSubmissionType = OpenEnum<
+  'LEAGUE' | 'TOURNAMENT' | 'EVENT' | 'LADDER' | 'CLINIC' | 'SOCIAL' | 'OPEN_PLAY'
+>;
+
+/**
+ * Filters and pagination for {@link EventsResource.list}.
+ *
+ * @category Events
+ */
+export interface EventListOptions {
+  /**
+   * Only the listings YOUR app submitted with {@link EventsResource.submit}, so
+   * you can reconcile your own catalogue: match them to your events by
+   * `partnerEventId`, then submit or withdraw the difference.
+   *
+   * A listing you withdrew is not returned. A listing Vairified took down IS
+   * returned, with `removed: true` — re-sending it is refused, so skip it.
+   * Needs an API key linked to a partner app (a 400 otherwise). A key holding
+   * only `key:event:submit` may list with `mine: true` and nothing else.
+   */
+  readonly mine?: boolean;
+  /**
+   * Event type, e.g. `'TOURNAMENT'`, `'LEAGUE'`, `'OPEN_PLAY'`. Omit for every
+   * type. An unknown type is a 400, not an empty list.
+   */
+  readonly type?: string;
+  /**
+   * Only events that have not ended before this instant. An ISO 8601 date and
+   * time **with its time zone** (`2026-09-01T00:00:00Z` or an offset such as
+   * `-05:00`). A plain date, or a time with no zone, is refused with a
+   * `ValidationError` before the request is sent.
+   */
+  readonly dateFrom?: string;
+  /** Only events that have not started after this instant. Same format as `dateFrom`. */
+  readonly dateTo?: string;
+  /** Latitude of the search centre. Send `lat`, `lng` and `radiusMiles` together, or none. */
+  readonly lat?: number;
+  /** Longitude of the search centre. */
+  readonly lng?: number;
+  /**
+   * Search radius in miles, 1 to **250**. A larger radius is a 400, never
+   * quietly narrowed. An event with no coordinates is excluded from a radius
+   * search.
+   */
+  readonly radiusMiles?: number;
+  /** Results per page, 1 to 100. The API's default is 20. */
+  readonly limit?: number;
+  /** Pagination offset. */
+  readonly offset?: number;
+}
+
+/**
+ * Where an event is, as the API sends it.
+ *
+ * `latitude`/`longitude` are absent when the event has never been geocoded —
+ * never `0`, which is a real place.
+ *
+ * @category Events
+ */
+export interface PartnerEventLocationWire {
+  readonly venueName?: string;
+  readonly address?: string;
+  readonly city?: string;
+  readonly state?: string;
+  readonly zip?: string;
+  readonly country?: string;
+  readonly latitude?: number;
+  readonly longitude?: number;
+}
+
+/** An event's organising club, as the API sends it. @category Events */
+export interface PartnerEventClubWire {
+  readonly name: string;
+  readonly city?: string;
+  readonly state?: string;
+}
+
+/** The member who created an event, as the API sends it. @category Events */
+export interface PartnerEventCreatorWire {
+  readonly memberId: number;
+  readonly firstName: string;
+  readonly lastName: string;
+}
+
+/**
+ * An event, as the API sends it.
+ *
+ * Every field from `removed` down is returned **only on a listing your own app
+ * submitted**; on anyone else's event they are absent.
+ *
+ * @category Events
+ */
+export interface PartnerEventWire {
+  readonly eventId: number;
+  /** Your identifier, present only on listings YOU submitted. */
+  readonly partnerEventId?: string;
+  readonly name: string;
+  readonly type: string;
+  readonly status: string;
+  readonly sport: string;
+  readonly startDate?: string;
+  readonly endDate?: string;
+  readonly club?: PartnerEventClubWire;
+  readonly location?: PartnerEventLocationWire;
+  readonly hostName?: string;
+  readonly winScore?: number;
+  readonly winBy?: number;
+  readonly isPrivate: boolean;
+  readonly maxSpots?: number;
+  readonly maxTeams?: number;
+  /** Returned by {@link EventsResource.get} only, never by the list. */
+  readonly createdBy?: PartnerEventCreatorWire;
+  readonly createdAt: string;
+
+  // ---- your own listings only ----
+  readonly removed?: boolean;
+  readonly description?: string;
+  readonly registrationUrl?: string;
+  readonly registrationDeadline?: string;
+  readonly contactEmail?: string;
+  readonly contactPhone?: string;
+  readonly registrationFee?: number;
+  readonly playerFormat?: string;
+  readonly gender?: string;
+  readonly ratingMin?: number;
+  readonly ratingMax?: number;
+  readonly ratingType?: string;
+  readonly ratingSystem?: string;
+  readonly ageMin?: number;
+  readonly ageMax?: number;
+  readonly externalUrl?: string;
+  readonly sponsorName?: string;
+  readonly sponsorBannerUrl?: string;
+  readonly logoSourceUrl?: string;
+  readonly logoUrl?: string | null;
+  readonly extras?: Record<string, unknown>;
+}
+
+/** A page of events, as the API sends it. @category Events */
+export interface EventsPageWire {
+  readonly events: readonly PartnerEventWire[];
+  readonly total: number;
+}
+
+/**
+ * One enrolled member of an event, as the API sends it.
+ *
+ * On one of YOUR OWN listings, a member who never connected your app, or who
+ * disconnected it, comes back with `memberId`, `enrollmentStatus`, `isPaid`,
+ * `source` and `lapsed` only, so the profile fields are optional. (A member
+ * Vairified staff added who never connected your app also carries their name.)
+ *
+ * @category Events
+ */
+export interface PartnerEventMemberWire {
+  readonly memberId: number;
+  readonly firstName?: string;
+  readonly lastName?: string;
+  readonly rating?: number;
+  readonly isVairified?: boolean;
+  readonly isVairPlus?: boolean;
+  readonly enrollmentStatus: OpenEnum<'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'>;
+  readonly isPaid: boolean;
+  /** Your own listings only. */
+  readonly source?: EventMemberSource;
+  /** Your own listings only. */
+  readonly lapsed?: boolean;
+}
+
+/**
+ * Where a sign-up on one of your own listings came from: `PARTNER_LIST` is your
+ * list ({@link EventsResource.setMembers}), `VAIR_SIGNUP` the member registered
+ * on Vairified, `STAFF_ADD` Vairified staff registered them.
+ *
+ * @category Events
+ */
+export type EventMemberSource = OpenEnum<'PARTNER_LIST' | 'VAIR_SIGNUP' | 'STAFF_ADD'>;
+
+/** An event's roster, as the API sends it. @category Events */
+export interface EventMembersResultWire {
+  readonly eventId: number;
+  readonly sport: string;
+  readonly members: readonly PartnerEventMemberWire[];
+}
+
+/**
+ * Where a submitted event is.
+ *
+ * Treated as ONE field on a re-submit: leave `location` out to keep the stored
+ * one, send `null` to clear it.
+ *
+ * @category Events
+ */
+export interface PartnerEventSubmissionLocation {
+  readonly address?: string | null;
+  readonly city?: string | null;
+  readonly state?: string | null;
+  readonly zip?: string | null;
+  readonly country?: string | null;
+  /**
+   * Decimal degrees. Send it WITH `longitude`, or send neither. Coordinates you
+   * send are used exactly as given; without them Vairified places the event
+   * from its address.
+   */
+  readonly latitude?: number | null;
+  readonly longitude?: number | null;
+}
+
+/**
+ * What you send to {@link EventsResource.submit}.
+ *
+ * ⛔ **Leaving a field out keeps its current value; sending `null` clears it.**
+ * An older client that does not know a newer field therefore cannot erase it
+ * by re-sending. `location` counts as one field.
+ *
+ * ⛔ **Dates are ISO 8601 date-times WITH their time zone** — `Z` or an offset
+ * such as `-05:00`. A plain date, or a time with no zone, is refused with a
+ * `ValidationError` before the request is sent.
+ *
+ * ⛔ **One submission is one place at one time.** An event at four venues is
+ * four submissions, each with its own `partnerEventId`, location and
+ * `registrationUrl`; a recurring programme is one submission per date.
+ *
+ * The SDK refuses a date with no time zone before sending; every other field
+ * limit is the API's, and the SDK does not pre-check it. Among them:
+ * `maxSpots` and `maxTeams` are integers from 1 to **100,000**, and
+ * `registrationFee` is 0 to 100,000.
+ *
+ * @category Events
+ */
+export interface PartnerEventSubmission {
+  /**
+   * YOUR identifier for this event. Submitting the same one again UPDATES the
+   * listing rather than adding a second. Unique per partner app. Letters,
+   * digits and `. _ : ~ -`, starting with a letter or digit, at most 200
+   * characters.
+   */
+  readonly partnerEventId: string;
+  /** The sport, by its Vairified code, e.g. `'pickleball'`. Required; no default. */
+  readonly sportCode: string;
+  readonly name: string;
+  readonly type: PartnerEventSubmissionType;
+  /**
+   * `'CANCELLED'` cancels the event; `'UPCOMING'` lists it (and un-cancels a
+   * cancelled one). Leave it out to keep the current status.
+   */
+  readonly status?: OpenEnum<'UPCOMING' | 'CANCELLED'> | null;
+  /** Where a player registers. Required. http or https. */
+  readonly registrationUrl: string;
+  readonly description?: string | null;
+  /** Start, with its time zone. Required on every submission and cannot be cleared. */
+  readonly startDate: string;
+  /**
+   * End, with its time zone, after `startDate`. Required on every submission
+   * and cannot be cleared: a submission without one is refused (400) with a
+   * message saying the end date is required. An event whose end has passed can
+   * no longer be submitted or updated — only withdrawn.
+   */
+  readonly endDate: string;
+  /** When registration closes, with its time zone. */
+  readonly registrationDeadline?: string | null;
+  /** Who runs it, when that is not your own name. */
+  readonly hostName?: string | null;
+  readonly contactEmail?: string | null;
+  readonly contactPhone?: string | null;
+  /** Entry fee in USD, 0 to 100,000. Vairified takes no payment. */
+  readonly registrationFee?: number | null;
+  /** Capacity in individual players: an integer from 1 to 100,000. */
+  readonly maxSpots?: number | null;
+  /** Capacity in teams: an integer from 1 to 100,000. */
+  readonly maxTeams?: number | null;
+  readonly playerFormat?: OpenEnum<'singles' | 'doubles' | 'mixed'> | null;
+  readonly gender?: OpenEnum<'male' | 'female' | 'mixed'> | null;
+  /** Lowest rating allowed, 2.0 to 8.0. */
+  readonly ratingMin?: number | null;
+  /** Highest rating allowed, 2.0 to 8.0. */
+  readonly ratingMax?: number | null;
+  /** Which ratings count for the range. */
+  readonly ratingType?: string | null;
+  /** Rating system the event uses, e.g. `'VAIR'`, `'DUPR'`. */
+  readonly ratingSystem?: string | null;
+  /** Youngest age allowed, 1 to 99. */
+  readonly ageMin?: number | null;
+  /** Oldest age allowed, 1 to 99. */
+  readonly ageMax?: number | null;
+  readonly winScore?: number | null;
+  readonly winBy?: number | null;
+  /** A page with more about the event. http or https. */
+  readonly externalUrl?: string | null;
+  readonly sponsorName?: string | null;
+  /** Sponsor banner image URL. http or https. */
+  readonly sponsorBannerUrl?: string | null;
+  /**
+   * The event's logo: an **https** URL to a PNG, JPEG, GIF or WebP of at most
+   * 2 MB. Vairified fetches it in the background and shows players its own
+   * stored copy; the listing is saved whether or not the logo can be used. To
+   * replace the image at the same address, send a new URL (a version in the
+   * query string is enough). `null` removes it.
+   */
+  readonly logoUrl?: string | null;
+  readonly location?: PartnerEventSubmissionLocation | null;
+  /** Free-form data of your own, returned to you and never shown to players. At most 8 KB of JSON. */
+  readonly extras?: Readonly<Record<string, unknown>> | null;
+}
+
+/** The result of a submission, as the API sends it. @category Events */
+export interface SubmittedEventWire {
+  readonly partnerEventId: string;
+  readonly eventId: number;
+  readonly created: boolean;
+}
+
+/** The result of a withdrawal, as the API sends it. @category Events */
+export interface WithdrawnEventWire {
+  readonly partnerEventId: string;
+  readonly eventId: number;
+  readonly withdrawn: boolean;
+}
+
+/**
+ * Why a member on your list was not applied by {@link EventsResource.setMembers}.
+ *
+ * - `UNKNOWN_MEMBER`: no Vairified member has this number (including one merged
+ *   into another account, or one deleting their account). That person's place on
+ *   the listing is left as it was.
+ * - `NOT_CONNECTED`: the member has never connected your app, is not a player
+ *   your app created, and holds no current Vairified sign-up on this listing
+ *   (never sent to a TRUSTED app).
+ * - `DISCONNECTED`: the member disconnected your app (a TRUSTED app included)
+ *   and holds no current Vairified sign-up on this listing. They can be listed
+ *   again once they reconnect.
+ *
+ * Open, like the webhook enums: never branch on it exhaustively.
+ *
+ * @category Events
+ */
+export type EventRosterRefusalReason = OpenEnum<
+  'UNKNOWN_MEMBER' | 'NOT_CONNECTED' | 'DISCONNECTED'
+>;
+
+/** One member your list named and the API did not apply, as the API sends it. @category Events */
+export interface EventRosterRefusalWire {
+  readonly memberId: number;
+  readonly reason: EventRosterRefusalReason;
+  readonly message: string;
+}
+
+/** The result of sending a listing's confirmed members, as the API sends it. @category Events */
+export interface EventRosterResultWire {
+  readonly partnerEventId: string;
+  readonly eventId: number;
+  readonly added: number;
+  readonly confirmed: number;
+  readonly unchanged: number;
+  readonly removed: number;
+  readonly refused: readonly EventRosterRefusalWire[];
+}
+
+// ---------------------------------------------------------------------------
 // Misc
 // ---------------------------------------------------------------------------
 
@@ -541,10 +913,9 @@ export interface MemberStatusEventSportWire {
 /**
  * The `data` block of a `member.status` event.
  *
- * :warning: `sports` is **absent, not empty**, for a member who did not grant
- * `user:rating:read`. Absence means "we were not permitted to tell you", which
- * is a different claim from "holds no certifications" — check for the key
- * before concluding anything about a member's rater standing.
+ * `sports` is always sent: a connected member's app holds every member
+ * permission, so it is no longer withheld. An empty map means "holds no
+ * current certification".
  *
  * :warning: A sport appears only while the member holds a **current**
  * certification in it. Expired and revoked certifications are not reported, so
@@ -555,6 +926,13 @@ export interface MemberStatusEventDataWire {
   readonly memberId: number;
   readonly isVairPlus: boolean;
   readonly isAmbassador: boolean;
+  /**
+   * Per-sport VAIR Pro standing, keyed by sport code. Always sent now; `{}`
+   * means the member holds no current certification. Still optional (and
+   * nullable) in this type because `verifyWebhook()` hands over a delivery
+   * queued before the change, or an explicit `null`, as it arrived rather than
+   * refusing it.
+   */
   readonly sports?: Record<string, MemberStatusEventSportWire> | null;
   /**
    * VAIR Pro standing **collapsed across every sport**: `ACTIVE` if any sport's
@@ -614,10 +992,14 @@ export interface ConnectionRevokedEventWire extends WebhookEventEnvelopeWire {
  * not matched since. Reusing the poll type here is a mistake this SDK made once
  * and the reason this docstring exists.
  *
- * :warning: **Two variants, distinguished by {@link ratingDataWithheld}.** An app
- * holding `user:webhook:subscribe` but not `user:rating:read` is told *that* a
- * member's rating changed and not *what it changed to* — `sports` is **absent**,
- * not empty, and `ratingDataWithheld` is `true`.
+ * Rating webhooks are sent only to an app Vairified has approved; polling
+ * (`members.ratingUpdates()`) needs only a working, unsuspended key.
+ *
+ * :warning: **A connected member's ratings are always included.** The
+ * notification-only variant ({@link ratingDataWithheld} `true`, `sports`
+ * **absent**, not empty) is no longer sent for a connected member. It can still
+ * appear in your delivery log, for a delivery abandoned after the member
+ * disconnected your app, and on a legacy pre-Connect subscription.
  */
 /**
  * One sport's rating standing inside a `rating.updated` snapshot.
@@ -646,9 +1028,10 @@ export interface RatingUpdatedEventDataWire {
    * The member's complete rating standing, keyed by sport code, at the moment
    * the computation finished — a **snapshot**, not a diff.
    *
-   * :rotating_light: **Absent when the partner lacks `user:rating:read`.** Absence
-   * means "we were not permitted to tell you", which is not the same claim as
-   * "no ratings". Check {@link ratingDataWithheld}.
+   * Always present for a connected member. :rotating_light: **Absent on the
+   * notification-only variant**, where absence means "the rating data was
+   * withheld", which is not the same claim as "no ratings". Check
+   * {@link ratingDataWithheld}.
    */
   readonly sports?: Readonly<Record<string, RatingUpdatedSportWire>> | null;
 
@@ -684,9 +1067,11 @@ export interface RatingUpdatedEventDataWire {
   readonly sequence: string;
 
   /**
-   * Present and `true` only on the notification variant — the partner was not
-   * granted `user:rating:read`, so {@link sports} is absent by design rather
-   * than because nothing changed.
+   * Present and `true` only on the notification variant, where {@link sports}
+   * is absent by design rather than because nothing changed. It is no longer
+   * sent for a connected member. You can still see it in your delivery log on a
+   * delivery abandoned after the member disconnected your app, and on a legacy
+   * pre-Connect subscription.
    */
   readonly ratingDataWithheld?: boolean;
 }
@@ -739,6 +1124,79 @@ export interface EventCreatedEventWire extends WebhookEventEnvelopeWire {
 }
 
 /**
+ * The `data` block of an `event.registration` delivery — a player signed up
+ * for, or a pending sign-up was cancelled on, one of YOUR listings on Vairified.
+ *
+ * Sent to the app that owns the listing. Nothing your own app did is sent back
+ * to you: your member list ({@link EventsResource.setMembers}) and your own
+ * withdrawal send nothing.
+ *
+ * :warning: **`data.eventId` is a NUMBER and is not the envelope's `eventId`**,
+ * exactly as on `event.created`: the envelope's is the delivery's own id (dedupe
+ * on it), this one is your listing's Vairified event number.
+ *
+ * :warning: **The profile fields follow the member's connection.** They are
+ * present when the member is connected to your app, your app is TRUSTED, or the
+ * member is a placeholder your app created. A member who never connected your
+ * app, or who disconnected it, comes with `memberId`, `action`, `source` and the
+ * listing only (a member Vairified staff registered who never connected your
+ * app also carries their name); after a disconnect you receive their member
+ * number alone. The
+ * notice never carries an email address or a phone number.
+ *
+ * Missed one? Delivery is at-least-once and retried for hours; after that, read
+ * the listing's roster back with {@link EventsResource.members}, which shows
+ * every sign-up waiting for you. There is no replay endpoint.
+ */
+export interface EventRegistrationEventDataWire {
+  /** Your listing's Vairified event number. */
+  readonly eventId: number;
+  /** Your own id for the listing, as you sent it. */
+  readonly partnerEventId: string | null;
+  /** The member's Vairified member number. */
+  readonly memberId: number;
+  /**
+   * `signed_up`: the member asked for a place on Vairified; it is pending until
+   * your member list names them. `cancelled`: a pending place was taken back on
+   * Vairified, or the member deleted their Vairified account, which ends every
+   * place they held on your listings that have not finished, confirmed ones
+   * included. A place on a listing that has finished stays as it is and you are
+   * not told.
+   */
+  readonly action: OpenEnum<'signed_up' | 'cancelled'>;
+  /**
+   * Who did it: `player` (the member, including deleting their account) or
+   * `staff` (Vairified staff, on the member's behalf).
+   */
+  readonly source: OpenEnum<'player' | 'staff'>;
+  /** When it happened (ISO 8601). */
+  readonly changedAt: string;
+  /**
+   * Present when the member is connected to your app, your app is TRUSTED, the
+   * member is a placeholder your app created, or Vairified staff registered a
+   * member who never connected to you. Absent for a member who disconnected your
+   * app.
+   */
+  readonly firstName?: string;
+  /** As {@link firstName}. */
+  readonly lastName?: string;
+  /** Whether the member holds a Vairified verified rating. With the profile only. */
+  readonly isVairified?: boolean;
+  /** Whether the member holds VAIR+ now. With the profile only. */
+  readonly isVairPlus?: boolean;
+  /**
+   * The member's rating in the listing's sport, when the member is connected to
+   * your app, your app is TRUSTED, or the member is your own placeholder.
+   */
+  readonly rating?: number;
+}
+
+export interface EventRegistrationEventWire extends WebhookEventEnvelopeWire {
+  readonly event: 'event.registration';
+  readonly data: EventRegistrationEventDataWire;
+}
+
+/**
  * Any event this SDK version does not model richly.
  *
  * Verification succeeds and `data` is handed over untouched. This is
@@ -760,4 +1218,5 @@ export type VerifiedWebhookEvent =
   | ConnectionRevokedEventWire
   | RatingUpdatedEventWire
   | EventCreatedEventWire
+  | EventRegistrationEventWire
   | UnknownWebhookEventWire;

@@ -14,6 +14,7 @@ import {
   dedupeKey,
   isConnectionRevokedEvent,
   isEventCreatedEvent,
+  isEventRegistrationEvent,
   isMemberStatusEvent,
   isNewerSequence,
   isRatingUpdatedEvent,
@@ -34,8 +35,9 @@ import {
 // in either repo that measures parity rather than re-reasoning it.
 //
 // The body carries two things deliberately: non-ASCII characters, and NO
-// `sports` key (the member-declined-rating-scope cohort, which production
-// contains none of today).
+// `sports` key. The API now always sends `sports` (a connection is all or
+// nothing, Vairified#1320); the vector predates that and stays as it is
+// because the verifier must still hand over a delivery without the key.
 const GOLDEN = {
   secret: 'whsec_golden_vector_do_not_use_in_production',
   timestamp: 1758700000,
@@ -97,9 +99,9 @@ describe('verifyWebhook — the shared golden vector', () => {
   it('leaves an absent `sports` absent — never {}', async () => {
     const event = await verifyWebhook(GOLDEN.body, GOLDEN.header, GOLDEN.secret, at());
     if (!isMemberStatusEvent(event)) throw new Error('narrowing failed');
-    // The distinction this asserts: "we were not permitted to tell you" must
-    // stay distinguishable from "holds no certifications". Defaulting to {}
-    // silently converts the first into the second.
+    // The verifier hands over what arrived. Defaulting a missing key to {}
+    // would silently turn "not in this delivery" into "holds no
+    // certifications".
     expect(event.data.sports).toBeUndefined();
     expect('sports' in event.data).toBe(false);
   });
@@ -353,15 +355,16 @@ describe('verifyWebhook — a signed but malformed event raises', () => {
     );
   });
 
-  it('does NOT raise when only the optional sports key is absent', async () => {
-    // The guard must distinguish "optional and absent" from "required and
-    // missing" — the absent-vs-empty rule depends on this not being over-strict.
+  it('does NOT raise when only the sports key is absent', async () => {
+    // `sports` is always sent now, but the guard checks the envelope only: a
+    // refused delivery is retried and then dropped, so it must not be stricter
+    // than that over a per-member field.
     const event = await verifyWebhook(GOLDEN.body, GOLDEN.header, GOLDEN.secret, at());
     expect(event.event).toBe('member.status');
   });
 });
 
-describe('verifyWebhook — a sports block when the scope WAS granted', () => {
+describe('verifyWebhook — a sports block, as the API always sends it', () => {
   it('surfaces per-sport standing as a plain map', async () => {
     const withSports = GOLDEN.body.replace(
       '"vairProStatus":null',
@@ -587,8 +590,9 @@ describe('verifyWebhook — all four event types are typed', () => {
   });
 
   it('types the notification variant, where the ratings are withheld', async () => {
-    // The cohort production has none of today: webhook access granted, rating
-    // access declined. `sports` is ABSENT, not empty.
+    // No longer sent for a connected member. It can still appear in the
+    // delivery log for a delivery abandoned after the member disconnected,
+    // and on a legacy pre-Connect subscription. `sports` is ABSENT, not empty.
     const body = JSON.stringify({
       event: 'rating.updated',
       eventId: 'evt_rating_withheld',
@@ -654,6 +658,61 @@ describe('verifyWebhook — all four event types are typed', () => {
     // The shadowing pair: envelope id is the DELIVERY, data id is the EVENT.
     expect(event.eventId).toBe('evt_envelope');
     expect(event.data.eventId).toBe(55123);
+  });
+
+  it('types event.registration, and its numeric eventId is not the envelope id', async () => {
+    const body = JSON.stringify({
+      event: 'event.registration',
+      eventId: 'evt_0b6f3f0e-6f4c-4d7d-9a7e-2f1b9b0a1c55',
+      timestamp: '2026-10-20T15:02:02.721Z',
+      data: {
+        eventId: 70214,
+        partnerEventId: 'summer-open-2026',
+        memberId: 4873327,
+        action: 'signed_up',
+        source: 'player',
+        changedAt: '2026-10-20T15:02:02.721Z',
+        firstName: 'Ann',
+        lastName: 'Lee',
+        isVairified: true,
+        isVairPlus: false,
+        rating: 4.256,
+      },
+    });
+    const event = await verifyWebhook(body, sign(body, GOLDEN.secret, NOW), GOLDEN.secret, at());
+    expect(isEventCreatedEvent(event)).toBe(false);
+    if (!isEventRegistrationEvent(event)) throw new Error('narrowing failed');
+    expect(event.eventId).toBe('evt_0b6f3f0e-6f4c-4d7d-9a7e-2f1b9b0a1c55');
+    expect(event.data.eventId).toBe(70214);
+    expect(event.data.partnerEventId).toBe('summer-open-2026');
+    expect(event.data.memberId).toBe(4873327);
+    expect(event.data.action).toBe('signed_up');
+    expect(event.data.source).toBe('player');
+    expect(event.data.firstName).toBe('Ann');
+    expect(event.data.rating).toBe(4.256);
+  });
+
+  it('accepts an event.registration about a disconnected member: number, action and source only', async () => {
+    const body = JSON.stringify({
+      event: 'event.registration',
+      eventId: 'evt_disconnected',
+      timestamp: '2026-10-20T15:02:02.721Z',
+      data: {
+        eventId: 70214,
+        partnerEventId: 'summer-open-2026',
+        memberId: 4873399,
+        action: 'cancelled',
+        source: 'staff',
+        changedAt: '2026-10-20T15:02:02.721Z',
+      },
+    });
+    const event = await verifyWebhook(body, sign(body, GOLDEN.secret, NOW), GOLDEN.secret, at());
+    if (!isEventRegistrationEvent(event)) throw new Error('narrowing failed');
+    expect(event.data.action).toBe('cancelled');
+    expect(event.data.source).toBe('staff');
+    expect(event.data.firstName).toBeUndefined();
+    expect(event.data.isVairPlus).toBeUndefined();
+    expect(event.data.rating).toBeUndefined();
   });
 });
 

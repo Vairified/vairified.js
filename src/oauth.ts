@@ -16,6 +16,14 @@
 /**
  * Every OAuth scope the Vairified authorization server accepts.
  *
+ * :warning: **A connection is all or nothing.** The `scope` you send in a
+ * Connect link is still checked (an unknown scope is refused), but it does not
+ * limit what the member grants: the consent screen lists every member
+ * permission, with Allow or Cancel and nothing to untick, and a connected
+ * member's app holds every scope in this union. The token, refresh, userinfo
+ * and member responses report all of them. You never need to ask for a wider
+ * scope later; the only way a member takes anything back is to disconnect.
+ *
  * Declaring this as a string union (rather than a free-form `string`)
  * lets TypeScript catch typos at authoring time:
  *
@@ -32,10 +40,12 @@ export type OAuthScope =
   | 'user:rating:read'
   | 'user:rating:history'
   | 'user:match:submit'
-  | 'user:webhook:subscribe';
+  | 'user:webhook:subscribe'
+  | 'user:event:register';
 
 /**
- * Human-readable description for every OAuth scope.
+ * Human-readable description for every OAuth scope. A connected member grants
+ * all of them together (see {@link OAuthScope}).
  *
  * @category OAuth
  */
@@ -46,10 +56,14 @@ export const SCOPES: Readonly<Record<OAuthScope, string>> = Object.freeze({
   'user:rating:history': 'View your complete rating history',
   'user:match:submit': 'Submit match results on your behalf',
   'user:webhook:subscribe': 'Receive notifications when your rating changes',
+  'user:event:register':
+    "Show you as registered for this partner's events on VAIR, and tell the partner when you sign up for or cancel one of its events on VAIR",
 });
 
 /**
- * The scopes automatically requested when none are specified.
+ * The scopes automatically requested when none are specified. What you request
+ * does not narrow the connection: a member who allows it grants every member
+ * scope (see {@link OAuthScope}).
  *
  * @category OAuth
  */
@@ -249,6 +263,7 @@ function base64UrlNoPad(bytes: Uint8Array): string {
 
 /**
  * Ensure `user:profile:read` is in the scope list, prepending if necessary.
+ * Kept for compatibility: the list no longer limits what a member grants.
  *
  * @internal
  */
